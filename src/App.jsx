@@ -19,6 +19,7 @@ import {
   BarChart3,
   Monitor,
   RotateCcw,
+  Users,
 } from 'lucide-react';
 import Toast from './components/Toast';
 import EmptyState from './components/EmptyState';
@@ -51,12 +52,29 @@ import {
 } from './constants/appData';
 import liumaqLogo from './assets/liumaq-logo.svg';
 
+const ROLE_OPTIONS = [
+  { value: 'Administrador', label: 'Administrador (total)' },
+  { value: 'Administrador/Tecnico', label: 'Administrador + Técnico' },
+  { value: 'Tecnico', label: 'Técnico' },
+  { value: 'Servicio', label: 'Servicio' },
+  { value: 'Back Office', label: 'Back Office' },
+  { value: 'Consulta', label: 'Solo consulta' },
+];
+
+const getEmptyUserForm = () => ({
+  username: '',
+  name: '',
+  role: 'Tecnico',
+  password: '',
+});
+
 export default function App() {
   // === MEJORA 1: localStorage - Persistencia de datos ===
   const [inventory, setInventory] = useLocalStorage('almacen-inventory', INITIAL_DATA);
   const [orders, setOrders] = useLocalStorage('almacen-orders', INITIAL_ORDERS);
   const [history, setHistory] = useLocalStorage('almacen-history', []);
   const [darkMode, setDarkMode] = useLocalStorage('almacen-darkmode-v2', true);
+  const [systemUsers, setSystemUsers] = useLocalStorage('almacen-system-users', SYSTEM_USERS);
 
   // UI State
   const [view, setView] = useState('dashboard');
@@ -71,6 +89,9 @@ export default function App() {
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showEditItem, setShowEditItem] = useState(null);
   const [toast, setToast] = useState(null);
+  const [editingUsername, setEditingUsername] = useState(null);
+  const [userForm, setUserForm] = useState(getEmptyUserForm());
+  const [userFormErrors, setUserFormErrors] = useState({});
 
   // Sesión / Login
   const [currentUser, setCurrentUser] = useLocalStorage('almacen-current-user', '');
@@ -79,8 +100,8 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
 
   const activeUser = useMemo(
-    () => SYSTEM_USERS.find(u => u.username === currentUser) || null,
-    [currentUser]
+    () => systemUsers.find(u => u.username === currentUser) || null,
+    [currentUser, systemUsers]
   );
 
   const roleValue = (activeUser?.role || '').toLowerCase();
@@ -88,7 +109,8 @@ export default function App() {
     const isAdmin = roleValue.includes('administrador');
     const isTech = roleValue.includes('tecnico') || roleValue.includes('workshop');
     const isService = roleValue.includes('servicio') || roleValue.includes('back office');
-    const canFulfillByUser = ORDER_FULFILLMENT_USERS.has((currentUser || '').toLowerCase());
+    const currentUserLower = (currentUser || '').toLowerCase();
+    const canFulfillByUser = ORDER_FULFILLMENT_USERS.has(currentUserLower);
     const canViewAdminPanel = isAdmin || isService;
 
     return {
@@ -97,11 +119,12 @@ export default function App() {
       canEditInventory: isAdmin,
       canManageData: isAdmin,
       canCreateOrder: isAdmin || isTech || isService,
-      canCompleteOrder: canFulfillByUser,
+      canCompleteOrder: canFulfillByUser || isAdmin || isTech || isService,
       canViewReports: isAdmin || isService,
       canViewSensitiveUsers: isAdmin,
       canViewTv: true,
       canAssignTechnicians: isAdmin || currentUser === 'lfuentes',
+      canManageUsers: isAdmin,
     };
   }, [roleValue, currentUser]);
 
@@ -114,6 +137,7 @@ export default function App() {
     if (permissions.canViewDashboard) allowedViews.add('dashboard');
     if (permissions.canViewInventory) allowedViews.add('inventory');
     if (permissions.canViewReports) allowedViews.add('reports');
+    if (permissions.canManageUsers) allowedViews.add('users');
 
     if (!allowedViews.has(view)) {
       setView('orders');
@@ -125,6 +149,7 @@ export default function App() {
     permissions.canViewDashboard,
     permissions.canViewInventory,
     permissions.canViewReports,
+    permissions.canManageUsers,
   ]);
 
   // Limpieza de datos demo heredados (versiones anteriores)
@@ -186,8 +211,8 @@ export default function App() {
   const [orderQuickFilters, setOrderQuickFilters] = useState({ client: 'ALL', technician: 'ALL' });
 
   const technicianUsers = useMemo(
-    () => SYSTEM_USERS.filter(u => u.role.toLowerCase().includes('tecnico')),
-    []
+    () => systemUsers.filter(u => (u.role || '').toLowerCase().includes('tecnico')),
+    [systemUsers]
   );
 
   // === MEJORA 4: Edición inline ===
@@ -262,7 +287,7 @@ export default function App() {
     if (orderQuickFilters.technician !== 'ALL') {
       const techLabel = orderQuickFilters.technician === 'UNASSIGNED'
         ? 'Sin asignar'
-        : `${SYSTEM_USERS.find(u => u.username === orderQuickFilters.technician)?.name || orderQuickFilters.technician} (${orderQuickFilters.technician})`;
+        : `${systemUsers.find(u => u.username === orderQuickFilters.technician)?.name || orderQuickFilters.technician} (${orderQuickFilters.technician})`;
 
       chips.push({
         key: 'technician',
@@ -272,7 +297,7 @@ export default function App() {
     }
 
     return chips;
-  }, [orderQuickFilters]);
+  }, [orderQuickFilters, systemUsers]);
 
   useEffect(() => {
     setBulkOrderIds(prev => prev.filter(id => orders.some(o => o.id === id && o.status === 'pending')));
@@ -283,7 +308,7 @@ export default function App() {
     const username = loginForm.username.trim().toLowerCase();
     const password = loginForm.password;
 
-    const user = SYSTEM_USERS.find(
+    const user = systemUsers.find(
       u => u.username.toLowerCase() === username && u.password === password
     );
 
@@ -307,6 +332,130 @@ export default function App() {
     setCurrentUser('');
     setIsMobileMenuOpen(false);
     setView('dashboard');
+  };
+
+  const resetUserForm = () => {
+    setEditingUsername(null);
+    setUserForm(getEmptyUserForm());
+    setUserFormErrors({});
+  };
+
+  const startEditUser = (user) => {
+    if (!permissions.canManageUsers) {
+      showToast('⛔ Tu rol no tiene permiso para gestionar usuarios', 'error');
+      return;
+    }
+
+    setEditingUsername(user.username);
+    setUserForm({
+      username: user.username,
+      name: user.name || '',
+      role: user.role || 'Tecnico',
+      password: '',
+    });
+    setUserFormErrors({});
+    setView('users');
+  };
+
+  const saveUser = (e) => {
+    e.preventDefault();
+
+    if (!permissions.canManageUsers) {
+      showToast('⛔ Tu rol no tiene permiso para gestionar usuarios', 'error');
+      return;
+    }
+
+    const errors = {};
+    const normalizedUsername = userForm.username.trim().toLowerCase();
+    const normalizedName = userForm.name.trim();
+    const normalizedRole = userForm.role.trim();
+
+    if (!normalizedUsername) errors.username = 'Usuario requerido';
+    if (!normalizedName) errors.name = 'Nombre requerido';
+    if (!normalizedRole) errors.role = 'Rol requerido';
+
+    if (!editingUsername && !userForm.password.trim()) {
+      errors.password = 'Contraseña requerida para nuevo usuario';
+    }
+
+    const usernameInUse = systemUsers.some(
+      u => u.username.toLowerCase() === normalizedUsername && u.username !== editingUsername
+    );
+    if (usernameInUse) errors.username = 'Ese usuario ya existe';
+
+    if (Object.keys(errors).length > 0) {
+      setUserFormErrors(errors);
+      showToast('❌ Revisa los datos del usuario', 'error');
+      return;
+    }
+
+    if (editingUsername) {
+      setSystemUsers(prev => prev.map(user => (
+        user.username === editingUsername
+          ? {
+            ...user,
+            username: normalizedUsername,
+            name: normalizedName,
+            role: normalizedRole,
+            password: userForm.password.trim() ? userForm.password : user.password,
+          }
+          : user
+      )));
+
+      if (currentUser === editingUsername && normalizedUsername !== editingUsername) {
+        setCurrentUser(normalizedUsername);
+      }
+
+      addHistory('user-updated', { username: normalizedUsername, role: normalizedRole });
+      showToast(`✅ Usuario ${normalizedUsername} actualizado`, 'success');
+    } else {
+      const newUser = {
+        username: normalizedUsername,
+        name: normalizedName,
+        role: normalizedRole,
+        password: userForm.password,
+      };
+
+      setSystemUsers(prev => [...prev, newUser]);
+      addHistory('user-created', { username: normalizedUsername, role: normalizedRole });
+      showToast(`✅ Usuario ${normalizedUsername} creado`, 'success');
+    }
+
+    resetUserForm();
+  };
+
+  const removeUser = (username) => {
+    if (!permissions.canManageUsers) {
+      showToast('⛔ Tu rol no tiene permiso para gestionar usuarios', 'error');
+      return;
+    }
+
+    if (username === currentUser) {
+      showToast('⚠️ No puedes eliminar tu propio usuario activo', 'error');
+      return;
+    }
+
+    const targetUser = systemUsers.find(u => u.username === username);
+    if (!targetUser) return;
+
+    const adminCount = systemUsers.filter(
+      user => (user.role || '').toLowerCase().includes('administrador')
+    ).length;
+
+    if ((targetUser.role || '').toLowerCase().includes('administrador') && adminCount <= 1) {
+      showToast('⚠️ Debe quedar al menos un administrador en el sistema', 'error');
+      return;
+    }
+
+    if (!window.confirm(`¿Eliminar al usuario ${username}?`)) return;
+
+    setSystemUsers(prev => prev.filter(user => user.username !== username));
+    addHistory('user-deleted', { username });
+    showToast(`✅ Usuario ${username} eliminado`, 'success');
+
+    if (editingUsername === username) {
+      resetUserForm();
+    }
   };
 
   // Backup & Restore
@@ -969,6 +1118,11 @@ export default function App() {
               <BarChart3 size={20} /> <span>Reportes</span>
             </button>
           )}
+          {permissions.canManageUsers && (
+            <button onClick={() => setView('users')} className={navButtonClass(view === 'users')}>
+              <Users size={20} /> <span>Usuarios</span>
+            </button>
+          )}
           <button onClick={() => setView('tv')} className={navButtonClass(view === 'tv')}>
             <Monitor size={20} /> <span>Pantalla Taller</span>
           </button>
@@ -1036,6 +1190,9 @@ export default function App() {
               <button onClick={() => { setView('orders'); setIsMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800 rounded"><ClipboardList /> Pedidos</button>
               {permissions.canViewReports && (
                 <button onClick={() => { setView('reports'); setIsMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800 rounded"><BarChart3 /> Reportes</button>
+              )}
+              {permissions.canManageUsers && (
+                <button onClick={() => { setView('users'); setIsMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800 rounded"><Users /> Usuarios</button>
               )}
               <button onClick={() => { setView('tv'); setIsMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800 rounded"><Monitor /> Pantalla Taller</button>
               {permissions.canAssignTechnicians && (
@@ -1112,7 +1269,7 @@ export default function App() {
                         <div>
                           <p className="text-3xl font-extrabold">{order.id}</p>
                           <p className={`${darkMode ? 'text-slate-300' : 'text-slate-600'} text-lg`}>👤 Cliente: {order.client}</p>
-                          <p className={`${darkMode ? 'text-slate-400' : 'text-slate-500'} text-base`}>🔧 Técnico: {order.assignedTo ? SYSTEM_USERS.find(u => u.username === order.assignedTo)?.name || order.assignedTo : 'Sin asignar'}</p>
+                          <p className={`${darkMode ? 'text-slate-400' : 'text-slate-500'} text-base`}>🔧 Técnico: {order.assignedTo ? systemUsers.find(u => u.username === order.assignedTo)?.name || order.assignedTo : 'Sin asignar'}</p>
                           <p className={`${darkMode ? 'text-slate-400' : 'text-slate-500'} text-base`}>
                             📅 Creado: {getOrderCreatedAt(order).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
                           </p>
@@ -1465,7 +1622,7 @@ export default function App() {
                       <option value="UNASSIGNED">Sin asignar</option>
                       {orderTechnicianOptions.map(username => (
                         <option key={username} value={username}>
-                          {(SYSTEM_USERS.find(u => u.username === username)?.name || username)} ({username})
+                          {(systemUsers.find(u => u.username === username)?.name || username)} ({username})
                         </option>
                       ))}
                     </select>
@@ -1545,7 +1702,7 @@ export default function App() {
 
                                 <div className="p-3 text-xs space-y-2">
                                   <p className="font-semibold">👤 {order.client}</p>
-                                  <p>🔧 {order.assignedTo ? SYSTEM_USERS.find(u => u.username === order.assignedTo)?.name || order.assignedTo : 'Sin asignar'}</p>
+                                  <p>🔧 {order.assignedTo ? systemUsers.find(u => u.username === order.assignedTo)?.name || order.assignedTo : 'Sin asignar'}</p>
                                   <p className={`${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
                                     🕒 {getOrderCreatedAt(order).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
                                   </p>
@@ -1695,6 +1852,137 @@ export default function App() {
             </div>
           )}
 
+          {/* USUARIOS */}
+          {view === 'users' && permissions.canManageUsers && (
+            <div className="space-y-6 max-w-7xl mx-auto">
+              <div className={`${cardColor} p-5 rounded-2xl border shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-3`}>
+                <div>
+                  <h2 className="text-3xl font-extrabold">Gestión de Usuarios</h2>
+                  <p className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-500'}`}>
+                    Crea usuarios y controla permisos a través del rol.
+                  </p>
+                </div>
+                <div className={`text-xs rounded-lg px-3 py-2 ${darkMode ? 'bg-slate-800 border border-slate-700 text-slate-300' : 'bg-slate-100 border border-slate-200 text-slate-600'}`}>
+                  Total usuarios: <span className="font-bold">{systemUsers.length}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <section className={`${cardColor} p-6 rounded-2xl border shadow-sm`}>
+                  <h3 className="font-bold text-lg mb-4">{editingUsername ? `Editar: ${editingUsername}` : 'Crear usuario nuevo'}</h3>
+                  <form onSubmit={saveUser} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Usuario *</label>
+                      <input
+                        type="text"
+                        value={userForm.username}
+                        disabled={!!editingUsername}
+                        onChange={e => setUserForm(prev => ({ ...prev, username: e.target.value.trim().toLowerCase() }))}
+                        className={`w-full p-2 rounded-lg border ${inputColor} ${editingUsername ? 'opacity-70 cursor-not-allowed' : ''}`}
+                        placeholder="ej. jlopez"
+                      />
+                      {userFormErrors.username && <p className="text-xs text-red-500 mt-1">{userFormErrors.username}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Nombre *</label>
+                      <input
+                        type="text"
+                        value={userForm.name}
+                        onChange={e => setUserForm(prev => ({ ...prev, name: e.target.value }))}
+                        className={`w-full p-2 rounded-lg border ${inputColor}`}
+                        placeholder="Nombre completo"
+                      />
+                      {userFormErrors.name && <p className="text-xs text-red-500 mt-1">{userFormErrors.name}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Rol *</label>
+                      <select
+                        value={userForm.role}
+                        onChange={e => setUserForm(prev => ({ ...prev, role: e.target.value }))}
+                        className={`w-full p-2 rounded-lg border ${inputColor}`}
+                      >
+                        {ROLE_OPTIONS.map(option => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                      {userFormErrors.role && <p className="text-xs text-red-500 mt-1">{userFormErrors.role}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        {editingUsername ? 'Nueva contraseña (opcional)' : 'Contraseña inicial *'}
+                      </label>
+                      <input
+                        type="password"
+                        value={userForm.password}
+                        onChange={e => setUserForm(prev => ({ ...prev, password: e.target.value }))}
+                        className={`w-full p-2 rounded-lg border ${inputColor}`}
+                        placeholder={editingUsername ? 'Deja vacío para conservar la actual' : 'Contraseña segura'}
+                      />
+                      {userFormErrors.password && <p className="text-xs text-red-500 mt-1">{userFormErrors.password}</p>}
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        type="submit"
+                        className="flex-1 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold"
+                      >
+                        {editingUsername ? 'Guardar cambios' : 'Crear usuario'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={resetUserForm}
+                        className="flex-1 px-4 py-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white"
+                      >
+                        Limpiar
+                      </button>
+                    </div>
+                  </form>
+                </section>
+
+                <section className={`${cardColor} p-6 rounded-2xl border shadow-sm`}>
+                  <h3 className="font-bold text-lg mb-4">Usuarios registrados</h3>
+                  <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
+                    {[...systemUsers]
+                      .sort((a, b) => a.username.localeCompare(b.username))
+                      .map(user => (
+                        <article key={user.username} className={`rounded-xl border p-3 ${darkMode ? 'bg-slate-800/60 border-slate-700' : 'bg-white border-slate-200'}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="font-bold text-sm">{user.name}</p>
+                              <p className={`text-xs ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>@{user.username}</p>
+                              <p className={`text-xs mt-1 ${darkMode ? 'text-cyan-300' : 'text-blue-600'}`}>Rol: {user.role}</p>
+                            </div>
+                            <div className="flex flex-col items-end gap-2">
+                              {user.username === currentUser && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">Tú</span>
+                              )}
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => startEditUser(user)}
+                                  className="px-2 py-1 text-xs rounded bg-blue-600 hover:bg-blue-500 text-white"
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  onClick={() => removeUser(user.username)}
+                                  className="px-2 py-1 text-xs rounded bg-red-600 hover:bg-red-500 text-white"
+                                >
+                                  Eliminar
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </article>
+                      ))}
+                  </div>
+                </section>
+              </div>
+            </div>
+          )}
+
           {/* REPORTES */}
           {view === 'reports' && (
             <div className="space-y-6 max-w-7xl mx-auto">
@@ -1768,16 +2056,20 @@ export default function App() {
 
                 {permissions.canViewSensitiveUsers && (
                   <div className={`${cardColor} p-6 rounded-2xl shadow-sm border lg:col-span-2`}>
-                    <h3 className="font-bold mb-4">Usuarios técnicos y claves base</h3>
-                    <div className="max-h-[220px] overflow-y-auto space-y-2 text-xs">
-                      {SYSTEM_USERS.map(user => (
-                        <div key={user.username} className="grid grid-cols-3 gap-2 pb-2 border-b border-slate-200 dark:border-slate-700">
-                          <span className="font-bold">{user.username}</span>
-                          <span className={`${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>{user.role}</span>
-                          <span>{user.password}</span>
-                        </div>
-                      ))}
-                    </div>
+                    <h3 className="font-bold mb-2">Control de acceso</h3>
+                    <p className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                      Gestiona usuarios desde la vista <span className="font-semibold">Usuarios</span> para crear cuentas,
+                      cambiar roles (permisos) y actualizar contraseñas.
+                    </p>
+                    <button
+                      onClick={() => setView('users')}
+                      className="mt-3 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm"
+                    >
+                      Ir a gestión de usuarios
+                    </button>
+                    <p className={`text-xs mt-2 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                      Usuarios registrados: <span className="font-semibold">{systemUsers.length}</span>
+                    </p>
                   </div>
                 )}
               </div>
@@ -1810,7 +2102,7 @@ export default function App() {
                 <label className="block text-sm font-medium mb-1">Técnico *</label>
                 <select value={assignmentForm.technicianId} onChange={e => setAssignmentForm({...assignmentForm, technicianId: e.target.value})} className={`w-full p-2 rounded-lg border ${inputColor} focus:outline-none focus:ring-2 focus:ring-amber-500`}>
                   <option value="">Selecciona un técnico</option>
-                  {SYSTEM_USERS.filter(u => u.role.includes('Tecnico')).map(user => (
+                  {systemUsers.filter(u => (u.role || '').toLowerCase().includes('tecnico')).map(user => (
                     <option key={user.username} value={user.username}>{user.name} ({user.username})</option>
                   ))}
                 </select>
