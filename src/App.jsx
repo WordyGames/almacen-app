@@ -264,6 +264,21 @@ export default function App() {
     [orders]
   );
 
+  const inventoryDescriptionById = useMemo(() => {
+    return inventory.reduce((acc, item) => {
+      acc[(item.id || '').toLowerCase()] = item.desc;
+      return acc;
+    }, {});
+  }, [inventory]);
+
+  const getOrderItemDescription = useCallback((item) => {
+    const directDescription = (item?.desc || '').trim();
+    if (directDescription) return directDescription;
+
+    const inventoryDescription = inventoryDescriptionById[(item?.id || '').toLowerCase()];
+    return inventoryDescription || 'Sin descripción';
+  }, [inventoryDescriptionById]);
+
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
       const matchClient = orderQuickFilters.client === 'ALL' || order.client === orderQuickFilters.client;
@@ -1302,7 +1317,7 @@ export default function App() {
                         <p className="text-sm mb-2">Artículos ({totalQty})</p>
                         <div className="space-y-1 max-h-24 overflow-y-auto">
                           {order.items.map((item, idx) => (
-                            <p key={`${order.id}-${idx}`} className="text-sm truncate">• {item.id} - {item.desc} x{item.qty}</p>
+                                <p key={`${order.id}-${idx}`} className="text-sm truncate">• {item.id} - {getOrderItemDescription(item)} x{item.qty}</p>
                           ))}
                         </div>
                       </div>
@@ -1699,6 +1714,14 @@ export default function App() {
                             📦 {order.items.length} artículo(s) · {totalQty} pieza(s)
                           </p>
 
+                          <div className="space-y-1 max-h-16 overflow-y-auto">
+                            {order.items.map((item, idx) => (
+                              <p key={`mobile-item-${order.id}-${idx}`} className="text-[11px] truncate">
+                                • {item.id} - {getOrderItemDescription(item)} x{item.qty}
+                              </p>
+                            ))}
+                          </div>
+
                           <div className="pt-2 border-t border-slate-200 dark:border-slate-700 space-y-1.5">
                             {permissions.canAssignTechnicians && order.status === 'pending' && (
                               <button
@@ -1786,7 +1809,7 @@ export default function App() {
 
                                   <div className="space-y-1 max-h-16 sm:max-h-20 overflow-y-auto">
                                     {order.items.map((item, idx) => (
-                                      <p key={idx} className="truncate">• {item.id} x{item.qty}</p>
+                                      <p key={idx} className="truncate">• {item.id} - {getOrderItemDescription(item)} x{item.qty}</p>
                                     ))}
                                   </div>
 
