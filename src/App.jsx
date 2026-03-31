@@ -1073,11 +1073,11 @@ export default function App() {
   }
 
   return (
-    <div className={`flex h-screen ${bgColor} font-sans relative transition-colors duration-200`}>
+    <div className={`flex h-[100dvh] overflow-hidden ${bgColor} font-sans relative transition-colors duration-200`}>
       {/* === MEJORA 6: Gestión de Múltiples Almacenes === */}
       {/* Sidebar */}
       {view !== 'tv' && (
-      <aside className={`hidden md:flex flex-col w-64 ${darkMode ? 'sidebar-glass border-r border-slate-700/60' : 'bg-slate-900'} text-white shadow-xl`}>
+      <aside className={`hidden md:flex flex-col h-full w-64 ${darkMode ? 'sidebar-glass border-r border-slate-700/60' : 'bg-slate-900'} text-white shadow-xl`}>
         <div className="p-5 border-b border-slate-800/70">
           <img
             src={liumaqLogo}
@@ -1163,7 +1163,7 @@ export default function App() {
       )}
 
       {/* Main */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+      <main className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Mobile Header */}
         {view !== 'tv' && (
         <header className={`md:hidden flex items-center justify-between p-4 ${darkMode ? 'bg-slate-950' : 'bg-slate-900'} text-white`}>
