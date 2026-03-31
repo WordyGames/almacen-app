@@ -20,10 +20,10 @@ export default function Toast({ message, type = 'success', onClose }) {
   };
 
   return (
-    <div className={`fixed top-4 right-4 flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg ${colors[type]} animate-in slide-in-from-right-4 fade-in z-[999]`}>
+    <div className={`fixed top-4 left-4 right-4 sm:left-auto sm:right-4 sm:max-w-md flex items-start gap-3 px-4 py-3 rounded-lg border shadow-lg ${colors[type]} animate-in slide-in-from-right-4 fade-in z-[999]`}>
       {icons[type]}
-      <p className="text-sm font-medium text-slate-800">{message}</p>
-      <button onClick={onClose} className="ml-2 text-slate-400 hover:text-slate-600">
+      <p className="text-sm font-medium text-slate-800 break-words flex-1">{message}</p>
+      <button onClick={onClose} className="ml-2 text-slate-400 hover:text-slate-600 shrink-0">
         <X size={16} />
       </button>
     </div>

@@ -66,21 +66,21 @@ export default function InventoryTable({
 
   return (
     <div className={`${cardColor} rounded-2xl shadow-sm border overflow-hidden`}>
-      <div className={`px-4 py-2 text-xs border-b ${darkMode ? 'border-slate-700 text-slate-400' : 'border-slate-200 text-slate-500'}`}>
+      <div className={`px-3 sm:px-4 py-2 text-[11px] sm:text-xs border-b ${darkMode ? 'border-slate-700 text-slate-400' : 'border-slate-200 text-slate-500'}`}>
         Renderizando {visibleItems.length} de {items.length} filas (virtualizado)
       </div>
 
       <div ref={containerRef} onScroll={onScroll} className="max-h-[70vh] overflow-auto">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[760px] text-xs sm:text-sm">
           <thead className={`${darkMode ? 'bg-slate-700' : 'bg-slate-50'} border-b sticky top-0 z-10`}>
             <tr>
-              <th className="px-4 py-3 text-left cursor-pointer hover:opacity-70" onClick={() => onSort('id')}>Artículo {sortConfig.key === 'id' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
-              <th className="px-4 py-3 text-left cursor-pointer hover:opacity-70" onClick={() => onSort('desc')}>Descripción {sortConfig.key === 'desc' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
-              <th className="px-4 py-3 text-center cursor-pointer hover:opacity-70" onClick={() => onSort('cost')}>Costo {sortConfig.key === 'cost' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
-              <th className="px-4 py-3 text-center cursor-pointer hover:opacity-70" onClick={() => onSort('stock')}>Stock {sortConfig.key === 'stock' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
-              <th className="px-4 py-3 text-center">Disponible</th>
-              <th className="px-4 py-3 text-center cursor-pointer hover:opacity-70" onClick={() => onSort('totalCost')}>Total {sortConfig.key === 'totalCost' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
-              <th className="px-4 py-3 text-center">Acciones</th>
+              <th className="px-2 sm:px-4 py-3 text-left whitespace-nowrap cursor-pointer hover:opacity-70" onClick={() => onSort('id')}>Artículo {sortConfig.key === 'id' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+              <th className="px-2 sm:px-4 py-3 text-left whitespace-nowrap cursor-pointer hover:opacity-70" onClick={() => onSort('desc')}>Descripción {sortConfig.key === 'desc' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+              <th className="px-2 sm:px-4 py-3 text-center whitespace-nowrap cursor-pointer hover:opacity-70" onClick={() => onSort('cost')}>Costo {sortConfig.key === 'cost' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+              <th className="px-2 sm:px-4 py-3 text-center whitespace-nowrap cursor-pointer hover:opacity-70" onClick={() => onSort('stock')}>Stock {sortConfig.key === 'stock' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+              <th className="px-2 sm:px-4 py-3 text-center whitespace-nowrap">Disponible</th>
+              <th className="px-2 sm:px-4 py-3 text-center whitespace-nowrap cursor-pointer hover:opacity-70" onClick={() => onSort('totalCost')}>Total {sortConfig.key === 'totalCost' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+              <th className="px-2 sm:px-4 py-3 text-center whitespace-nowrap">Acciones</th>
             </tr>
           </thead>
           <tbody className={`divide-y ${darkMode ? 'divide-slate-700' : 'divide-slate-100'}`}>
@@ -92,43 +92,43 @@ export default function InventoryTable({
 
             {visibleItems.map(item => (
               <tr key={item.id} className={`hover:${darkMode ? 'bg-slate-700/50' : 'bg-blue-50/30'} transition-colors`}>
-                <td className="px-4 py-3 font-bold">
+                <td className="px-2 sm:px-4 py-3 font-bold whitespace-nowrap">
                   {showEditItem === item.id ? (
                     <input
                       type="text"
                       value={editData.id}
                       onChange={e => setEditData({ ...editData, id: e.target.value })}
-                      className={`w-20 p-1 rounded border ${inputColor}`}
+                      className={`w-16 sm:w-20 p-1 rounded border ${inputColor}`}
                     />
                   ) : (
                     item.id
                   )}
                 </td>
-                <td className="px-4 py-3 text-sm">
+                <td className="px-2 sm:px-4 py-3 text-xs sm:text-sm">
                   {showEditItem === item.id ? (
                     <input
                       type="text"
                       value={editData.desc}
                       onChange={e => setEditData({ ...editData, desc: e.target.value })}
-                      className={`w-40 p-1 rounded border ${inputColor}`}
+                      className={`w-32 sm:w-40 p-1 rounded border ${inputColor}`}
                     />
                   ) : (
-                    <span className="truncate">{item.desc}</span>
+                    <span className="block max-w-[180px] sm:max-w-xs truncate">{item.desc}</span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-center">
+                <td className="px-2 sm:px-4 py-3 text-center whitespace-nowrap">
                   {showEditItem === item.id ? (
                     <input
                       type="number"
                       value={editData.cost}
                       onChange={e => setEditData({ ...editData, cost: parseFloat(e.target.value) || 0 })}
-                      className={`w-24 p-1 rounded border ${inputColor} text-center`}
+                      className={`w-20 sm:w-24 p-1 rounded border ${inputColor} text-center`}
                     />
                   ) : (
                     formatMoney(item.cost)
                   )}
                 </td>
-                <td className="px-4 py-3 text-center">
+                <td className="px-2 sm:px-4 py-3 text-center whitespace-nowrap">
                   {showEditItem === item.id ? (
                     <input
                       type="number"
@@ -140,14 +140,14 @@ export default function InventoryTable({
                     item.stock
                   )}
                 </td>
-                <td className="px-4 py-3 text-center">
+                <td className="px-2 sm:px-4 py-3 text-center whitespace-nowrap">
                   <span className={`px-2 py-1 rounded text-xs font-bold ${item.available < 2 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
                     {item.available}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-center font-bold">{formatMoney(item.totalCost)}</td>
-                <td className="px-4 py-3">
-                  <div className="flex justify-center gap-1">
+                <td className="px-2 sm:px-4 py-3 text-center font-bold whitespace-nowrap">{formatMoney(item.totalCost)}</td>
+                <td className="px-2 sm:px-4 py-3">
+                  <div className="flex flex-wrap sm:flex-nowrap justify-center gap-1">
                     {showEditItem === item.id ? (
                       <>
                         <button onClick={saveEditedItem} className="p-1 text-emerald-600 hover:bg-emerald-100 rounded" title="Guardar"><Save size={16} /></button>

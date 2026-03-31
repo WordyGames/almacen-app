@@ -1205,14 +1205,14 @@ export default function App() {
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-8">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-8">
           {/* PANTALLA TALLER (TV) */}
           {view === 'tv' && (
-            <div className={`${darkMode ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-900'} min-h-full rounded-2xl p-6 md:p-8`}>
+            <div className={`${darkMode ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-900'} min-h-full rounded-2xl p-3 sm:p-4 md:p-8`}>
               <div className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 p-4 rounded-2xl border ${darkMode ? 'bg-slate-900/60 border-slate-700' : 'bg-white/80 border-slate-200'} backdrop-blur`}>
                 <div>
-                  <h2 className="text-3xl md:text-4xl font-extrabold">Tablero de Pedidos - Taller</h2>
-                  <p className={`${darkMode ? 'text-slate-300' : 'text-slate-600'} text-base md:text-lg`}>Centro de control visual · prioridad, tiempo límite y progreso en tiempo real</p>
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold">Tablero de Pedidos - Taller</h2>
+                  <p className={`${darkMode ? 'text-slate-300' : 'text-slate-600'} text-sm sm:text-base md:text-lg`}>Centro de control visual · prioridad, tiempo límite y progreso en tiempo real</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className={`px-4 py-2 rounded-xl ${darkMode ? 'bg-slate-800' : 'bg-white'} border ${darkMode ? 'border-slate-700' : 'border-slate-200'}`}>
@@ -1227,14 +1227,14 @@ export default function App() {
 
               {(tvSlaSummary.overdue > 0 || tvSlaSummary.warning > 0) && (
                 <div className={`mb-4 rounded-xl px-4 py-3 border ${tvSlaSummary.overdue > 0 ? 'bg-red-100 border-red-300 text-red-700' : 'bg-amber-100 border-amber-300 text-amber-700'} animate-pulse`}>
-                  <p className="font-bold text-base md:text-lg">
+                  <p className="font-bold text-sm sm:text-base md:text-lg">
                     ⚠️ Alerta operativa: {tvSlaSummary.overdue} atrasado(s) · {tvSlaSummary.warning} urge hoy
                   </p>
                 </div>
               )}
 
               <div className="sticky top-2 z-10 mb-6">
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                   <div className={`${darkMode ? 'bg-slate-800/95 border-slate-700' : 'bg-white/95 border-slate-200'} backdrop-blur p-4 rounded-2xl border shadow-sm`}>
                     <p className="text-xs uppercase tracking-wide">Totales</p>
                     <p className="text-3xl font-extrabold">{orders.length}</p>
@@ -1267,10 +1267,10 @@ export default function App() {
                     <div key={order.id} className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'} rounded-2xl border p-6 shadow-md`}>
                       <div className="flex items-start justify-between gap-4">
                         <div>
-                          <p className="text-3xl font-extrabold">{order.id}</p>
-                          <p className={`${darkMode ? 'text-slate-300' : 'text-slate-600'} text-lg`}>👤 Cliente: {order.client}</p>
-                          <p className={`${darkMode ? 'text-slate-400' : 'text-slate-500'} text-base`}>🔧 Técnico: {order.assignedTo ? systemUsers.find(u => u.username === order.assignedTo)?.name || order.assignedTo : 'Sin asignar'}</p>
-                          <p className={`${darkMode ? 'text-slate-400' : 'text-slate-500'} text-base`}>
+                          <p className="text-2xl sm:text-3xl font-extrabold break-words">{order.id}</p>
+                          <p className={`${darkMode ? 'text-slate-300' : 'text-slate-600'} text-base sm:text-lg break-words`}>👤 Cliente: {order.client}</p>
+                          <p className={`${darkMode ? 'text-slate-400' : 'text-slate-500'} text-sm sm:text-base break-words`}>🔧 Técnico: {order.assignedTo ? systemUsers.find(u => u.username === order.assignedTo)?.name || order.assignedTo : 'Sin asignar'}</p>
+                          <p className={`${darkMode ? 'text-slate-400' : 'text-slate-500'} text-sm sm:text-base`}>
                             📅 Creado: {getOrderCreatedAt(order).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
                           </p>
                           <div className="mt-3 flex items-center gap-2 text-sm">
@@ -1318,7 +1318,7 @@ export default function App() {
             <div className="space-y-6 max-w-7xl mx-auto">
               <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-4 rounded-2xl border ${darkMode ? 'glass-card border-slate-700/60' : 'bg-white border-slate-200'}`}>
                 <div>
-                  <h2 className="text-3xl font-extrabold tracking-tight">Resumen General</h2>
+                  <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Resumen General</h2>
                   <p className={`text-sm ${darkMode ? 'text-cyan-200/80' : 'text-slate-500'}`}>En tiempo real</p>
                 </div>
                 <div className="w-full sm:w-64">
@@ -1535,7 +1535,7 @@ export default function App() {
             <div className="space-y-6">
               <div className={`rounded-2xl border p-4 md:p-6 ${darkMode ? 'bg-gradient-to-r from-slate-900 to-slate-800 border-slate-700' : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100'} flex justify-between items-center flex-wrap gap-4`}>
                 <div>
-                  <h2 className="text-3xl font-extrabold">Tablero de Pedidos</h2>
+                  <h2 className="text-2xl md:text-3xl font-extrabold">Tablero de Pedidos</h2>
                   <p className={`text-sm mt-1 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>Visual tipo kanban para priorizar, asignar y surtir más rápido.</p>
                 </div>
                 {permissions.canCreateOrder && (
@@ -1655,7 +1655,7 @@ export default function App() {
                 )}
               </div>
 
-              <div className="overflow-x-auto pb-2">
+              <div className="overflow-x-auto pb-2 -mx-1 px-1 md:mx-0 md:px-0">
                 {filteredOrders.length === 0 && (
                   <EmptyState
                     title="No hay pedidos con esos filtros"
@@ -1663,59 +1663,134 @@ export default function App() {
                     className={darkMode ? 'mb-4 bg-slate-800/40 border-slate-700 text-slate-200' : 'mb-4'}
                   />
                 )}
-                <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 min-w-[1200px] xl:min-w-0">
+
+                {filteredOrders.length > 0 && (
+                  <div className="md:hidden space-y-2">
+                    {filteredOrders.map(order => {
+                      const sla = getSlaInfo(order);
+                      const totalQty = order.items.reduce((sum, item) => sum + item.qty, 0);
+
+                      return (
+                        <article key={`mobile-${order.id}`} className={`${cardColor} rounded-lg border shadow-sm p-3 space-y-2`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="font-extrabold text-sm">{order.id}</p>
+                              <p className="text-[11px] text-slate-400">{order.status === 'completed' ? 'Completado' : 'Pendiente'}</p>
+                            </div>
+                            <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${statusBadgeClass(order.status)}`}>
+                              {sla.label}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${priorityBadgeClass(order.priority || 'Media')}`}>
+                              {order.priority || 'Media'}
+                            </span>
+                            <span className={`text-[10px] font-semibold ${sla.text}`}>
+                              {getTimeWindowText(sla.remainingHours)}
+                            </span>
+                          </div>
+
+                          <p className="text-xs font-semibold break-words">👤 {order.client}</p>
+                          <p className="text-[11px] break-words">
+                            🔧 {order.assignedTo ? systemUsers.find(u => u.username === order.assignedTo)?.name || order.assignedTo : 'Sin asignar'}
+                          </p>
+                          <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                            📦 {order.items.length} artículo(s) · {totalQty} pieza(s)
+                          </p>
+
+                          <div className="pt-2 border-t border-slate-200 dark:border-slate-700 space-y-1.5">
+                            {permissions.canAssignTechnicians && order.status === 'pending' && (
+                              <button
+                                onClick={() => openAssignmentModal(order)}
+                                className="w-full bg-amber-600 text-white py-1.5 rounded-lg hover:bg-amber-500 flex items-center justify-center gap-2 text-[11px]"
+                              >
+                                <User size={12} /> {order.assignedTo ? 'Reasignar' : 'Asignar'}
+                              </button>
+                            )}
+
+                            {order.status === 'pending' ? (
+                              !order.assignedTo ? (
+                                <button disabled className={`w-full ${darkMode ? 'bg-slate-700 text-slate-400' : 'bg-slate-300 text-slate-600'} py-1.5 rounded-lg cursor-not-allowed text-[11px]`}>
+                                  Asigna primero
+                                </button>
+                              ) : permissions.canCompleteOrder ? (
+                                <button
+                                  onClick={() => completeOrder(order.id)}
+                                  className="w-full bg-blue-600 text-white py-1.5 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 text-[11px]"
+                                >
+                                  <CheckCircle size={12} /> Surtir
+                                </button>
+                              ) : (
+                                <button disabled className={`w-full ${darkMode ? 'bg-slate-700 text-slate-400' : 'bg-slate-300 text-slate-600'} py-1.5 rounded-lg cursor-not-allowed text-[11px]`}>
+                                  Solo administrativos
+                                </button>
+                              )
+                            ) : (
+                              <button disabled className={`w-full ${darkMode ? 'bg-slate-700 text-slate-400' : 'bg-slate-300 text-slate-600'} py-1.5 rounded-lg cursor-not-allowed text-[11px]`}>
+                                Entregado
+                              </button>
+                            )}
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="hidden md:grid md:grid-cols-2 xl:grid-cols-5 gap-4">
                   {kanbanColumns.map(column => (
-                    <section key={column.id} className={`rounded-2xl border p-3 ${kanbanToneClass(column.tone)}`}>
+                    <section key={column.id} className={`rounded-2xl border p-2 sm:p-3 ${kanbanToneClass(column.tone)}`}>
                       <div className="flex items-center justify-between mb-3">
-                        <h3 className="font-bold text-sm uppercase tracking-wide">{column.title}</h3>
-                        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">
+                        <h3 className="font-bold text-xs sm:text-sm uppercase tracking-wide">{column.title}</h3>
+                        <span className="text-[11px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 rounded-full bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">
                           {column.orders.length}
                         </span>
                       </div>
 
-                      <div className="space-y-3 max-h-[64vh] overflow-y-auto pr-1">
+                      <div className="space-y-2 sm:space-y-3 max-h-[52vh] sm:max-h-[64vh] overflow-y-auto pr-1">
                         {column.orders.length === 0 ? (
-                          <p className="text-xs text-slate-400">Sin pedidos en esta columna.</p>
+                          <p className="text-[11px] sm:text-xs text-slate-400">Sin pedidos en esta columna.</p>
                         ) : (
                           column.orders.map(order => {
                             const sla = getSlaInfo(order);
                             const timeline = getOrderTimeline(order.id);
                             return (
-                              <article key={order.id} className={`${cardColor} rounded-xl shadow-sm border overflow-hidden`}>
-                                <div className="p-3 border-b">
+                              <article key={order.id} className={`${cardColor} rounded-lg sm:rounded-xl shadow-sm border overflow-hidden`}>
+                                <div className="p-2 sm:p-3 border-b">
                                   <div className="flex items-start justify-between gap-2">
                                     <div>
-                                      <p className="font-extrabold text-sm">{order.id}</p>
+                                      <p className="font-extrabold text-xs sm:text-sm">{order.id}</p>
                                       <div className="flex items-center gap-2 mt-1">
-                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${priorityBadgeClass(order.priority || 'Media')}`}>
+                                        <span className={`text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full ${priorityBadgeClass(order.priority || 'Media')}`}>
                                           {order.priority || 'Media'}
                                         </span>
                                         <span className={`w-2.5 h-2.5 rounded-full ${sla.traffic}`} />
-                                        <span className={`text-[10px] font-semibold ${sla.text}`}>{sla.label}</span>
+                                        <span className={`text-[9px] sm:text-[10px] font-semibold ${sla.text}`}>{sla.label}</span>
                                       </div>
                                     </div>
-                                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${statusBadgeClass(order.status)}`}>
+                                    <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-1 rounded-full border ${statusBadgeClass(order.status)}`}>
                                       {order.status === 'completed' ? 'Surtido' : 'Pendiente'}
                                     </span>
                                   </div>
                                 </div>
 
-                                <div className="p-3 text-xs space-y-2">
+                                <div className="p-2 sm:p-3 text-[11px] sm:text-xs space-y-1.5 sm:space-y-2">
                                   <p className="font-semibold">👤 {order.client}</p>
                                   <p>🔧 {order.assignedTo ? systemUsers.find(u => u.username === order.assignedTo)?.name || order.assignedTo : 'Sin asignar'}</p>
-                                  <p className={`${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                                  <p className={`hidden sm:block ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
                                     🕒 {getOrderCreatedAt(order).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
                                   </p>
                                   <p className={`${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Tiempo límite: {sla.slaHours}h · {getTimeWindowText(sla.remainingHours)}</p>
-                                  {!!order.notes && <p className={`italic ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>📝 {order.notes}</p>}
+                                  {!!order.notes && <p className={`italic break-words ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>📝 {order.notes}</p>}
 
-                                  <div className="space-y-1 max-h-20 overflow-y-auto">
+                                  <div className="space-y-1 max-h-16 sm:max-h-20 overflow-y-auto">
                                     {order.items.map((item, idx) => (
                                       <p key={idx} className="truncate">• {item.id} x{item.qty}</p>
                                     ))}
                                   </div>
 
-                                  <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                                  <div className="hidden sm:block pt-2 border-t border-slate-200 dark:border-slate-700">
                                     <p className="text-[10px] font-bold mb-1">Bitácora</p>
                                     {timeline.length === 0 ? (
                                       <p className="text-[10px] text-slate-400">Sin eventos.</p>
@@ -1731,34 +1806,38 @@ export default function App() {
                                   </div>
                                 </div>
 
-                                <div className="p-3 border-t space-y-2">
+                                <div className="p-2 sm:p-3 border-t space-y-1.5 sm:space-y-2">
                                   {permissions.canAssignTechnicians && order.status === 'pending' && (
                                     <button
                                       onClick={() => openAssignmentModal(order)}
-                                      className="w-full bg-amber-600 text-white py-2 rounded-lg hover:bg-amber-500 flex items-center justify-center gap-2 text-xs"
+                                      className="w-full bg-amber-600 text-white py-1.5 sm:py-2 rounded-lg hover:bg-amber-500 flex items-center justify-center gap-2 text-[11px] sm:text-xs"
                                     >
-                                      <User size={14} /> {order.assignedTo ? 'Reasignar' : 'Asignar'}
+                                      <User size={12} className="sm:hidden" />
+                                      <User size={14} className="hidden sm:inline" />
+                                      {order.assignedTo ? 'Reasignar' : 'Asignar'}
                                     </button>
                                   )}
                                   {order.status === 'pending' ? (
                                     !order.assignedTo ? (
-                                      <button disabled className={`w-full ${darkMode ? 'bg-slate-700 text-slate-400' : 'bg-slate-300 text-slate-600'} py-2 rounded-lg cursor-not-allowed text-xs`}>
+                                      <button disabled className={`w-full ${darkMode ? 'bg-slate-700 text-slate-400' : 'bg-slate-300 text-slate-600'} py-1.5 sm:py-2 rounded-lg cursor-not-allowed text-[11px] sm:text-xs`}>
                                         Asigna primero
                                       </button>
                                     ) : permissions.canCompleteOrder ? (
                                       <button
                                         onClick={() => completeOrder(order.id)}
-                                        className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 text-xs"
+                                        className="w-full bg-blue-600 text-white py-1.5 sm:py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 text-[11px] sm:text-xs"
                                       >
-                                        <CheckCircle size={14} /> Surtir
+                                        <CheckCircle size={12} className="sm:hidden" />
+                                        <CheckCircle size={14} className="hidden sm:inline" />
+                                        Surtir
                                       </button>
                                     ) : (
-                                      <button disabled className={`w-full ${darkMode ? 'bg-slate-700 text-slate-400' : 'bg-slate-300 text-slate-600'} py-2 rounded-lg cursor-not-allowed text-xs`}>
+                                      <button disabled className={`w-full ${darkMode ? 'bg-slate-700 text-slate-400' : 'bg-slate-300 text-slate-600'} py-1.5 sm:py-2 rounded-lg cursor-not-allowed text-[11px] sm:text-xs`}>
                                         Solo administrativos
                                       </button>
                                     )
                                   ) : (
-                                    <button disabled className={`w-full ${darkMode ? 'bg-slate-700 text-slate-400' : 'bg-slate-300 text-slate-600'} py-2 rounded-lg cursor-not-allowed text-xs`}>
+                                    <button disabled className={`w-full ${darkMode ? 'bg-slate-700 text-slate-400' : 'bg-slate-300 text-slate-600'} py-1.5 sm:py-2 rounded-lg cursor-not-allowed text-[11px] sm:text-xs`}>
                                       Entregado
                                     </button>
                                   )}
@@ -1857,7 +1936,7 @@ export default function App() {
             <div className="space-y-6 max-w-7xl mx-auto">
               <div className={`${cardColor} p-5 rounded-2xl border shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-3`}>
                 <div>
-                  <h2 className="text-3xl font-extrabold">Gestión de Usuarios</h2>
+                  <h2 className="text-2xl md:text-3xl font-extrabold">Gestión de Usuarios</h2>
                   <p className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-500'}`}>
                     Crea usuarios y controla permisos a través del rol.
                   </p>
@@ -1986,7 +2065,7 @@ export default function App() {
           {/* REPORTES */}
           {view === 'reports' && (
             <div className="space-y-6 max-w-7xl mx-auto">
-              <h2 className="text-3xl font-bold">Reportes & Estadísticas</h2>
+              <h2 className="text-2xl md:text-3xl font-bold">Reportes & Estadísticas</h2>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className={`${cardColor} p-6 rounded-2xl shadow-sm border`}>
