@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 80" width="100%" height="100%">
+  <defs>
+    <style>
+      .brand-text {
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        font-weight: 800;
+        font-size: 24px;
+        fill: #ffffff;
+        letter-spacing: 0.5px;
+      }
+
+      .sub-text {
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        font-weight: 500;
+        font-size: 10px;
+        fill: #94a3b8;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+      }
+
+      .crane-line {
+        stroke: #60a5fa;
+        stroke-width: 2;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .crane-lattice {
+        stroke: #60a5fa;
+        stroke-width: 1;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .crane-accent {
+        fill: #3b82f6;
+      }
+
+      .crane-cable {
+        stroke: #94a3b8;
+        stroke-width: 1;
+        stroke-dasharray: 2 1;
+      }
+
+      .load-box {
+        fill: none;
+        stroke: #60a5fa;
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .hanging-load {
+        animation: swing 4s ease-in-out infinite alternate;
+        transform-origin: 55px 31px;
+      }
+
+      @keyframes swing {
+        0% {
+          transform: rotate(-3deg);
+        }
+
+        100% {
+          transform: rotate(3deg);
+        }
+      }
+    </style>
+  </defs>
+
+  <g transform="translate(10, 10)">
+    <rect x="25" y="25" width="8" height="35" class="crane-line" />
+    <path d="M25 32 L33 40 M33 32 L25 40 M25 40 L33 48 M33 40 L25 48 M25 48 L33 56 M33 48 L25 56" class="crane-lattice" />
+    <line x1="20" y1="60" x2="38" y2="60" class="crane-line" stroke-width="3" />
+
+    <rect x="33" y="25" width="35" height="6" class="crane-line" />
+    <path d="M33 25 L39 31 M39 25 L33 31 M39 25 L45 31 M45 25 L39 31 M45 25 L51 31 M51 25 L45 31 M51 25 L57 31 M57 25 L51 31 M57 25 L63 31 M63 25 L57 31" class="crane-lattice" />
+
+    <rect x="10" y="25" width="15" height="6" class="crane-line" />
+    <path d="M17 25 L25 31 M25 25 L17 31" class="crane-lattice" />
+    <rect x="8" y="25" width="4" height="10" class="crane-accent" />
+
+    <polygon points="25,25 33,25 29,12" class="crane-line" />
+
+    <line x1="29" y1="12" x2="12" y2="25" class="crane-lattice" />
+    <line x1="29" y1="12" x2="50" y2="25" class="crane-lattice" />
+    <line x1="29" y1="12" x2="65" y2="25" class="crane-lattice" />
+
+    <g class="hanging-load">
+      <line x1="55" y1="31" x2="55" y2="48" class="crane-cable" />
+      <circle cx="55" cy="49" r="1.5" class="crane-accent" />
+      <rect x="51" y="52" width="8" height="8" class="load-box" />
+      <line x1="51" y1="52" x2="59" y2="60" class="crane-lattice" />
+      <line x1="59" y1="52" x2="51" y2="60" class="crane-lattice" />
+    </g>
+  </g>
+
+  <text x="85" y="42" class="brand-text">LIUMAQ</text>
+  <text x="86" y="58" class="sub-text">SISTEMA DE ALMACÉN</text>
+</svg>

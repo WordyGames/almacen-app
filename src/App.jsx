@@ -49,13 +49,14 @@ import {
   CLIENTS,
   CLIENT_SLA_HOURS,
 } from './constants/appData';
+import liumaqLogo from './assets/liumaq-logo.svg';
 
 export default function App() {
   // === MEJORA 1: localStorage - Persistencia de datos ===
   const [inventory, setInventory] = useLocalStorage('almacen-inventory', INITIAL_DATA);
   const [orders, setOrders] = useLocalStorage('almacen-orders', INITIAL_ORDERS);
   const [history, setHistory] = useLocalStorage('almacen-history', []);
-  const [darkMode, setDarkMode] = useLocalStorage('almacen-darkmode', false);
+  const [darkMode, setDarkMode] = useLocalStorage('almacen-darkmode-v2', true);
 
   // UI State
   const [view, setView] = useState('dashboard');
@@ -860,9 +861,18 @@ export default function App() {
   };
 
   // === MEJORA 7: Dark Mode ===
-  const bgColor = darkMode ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800';
-  const cardColor = darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200/60';
-  const inputColor = darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800';
+  const bgColor = darkMode ? 'app-bg text-slate-100' : 'bg-slate-50 text-slate-800';
+  const cardColor = darkMode ? 'glass-card border-slate-700/60 text-slate-100' : 'bg-white border-slate-200/60';
+  const inputColor = darkMode ? 'bg-slate-900/70 border-slate-600/70 text-slate-100 placeholder:text-slate-400' : 'bg-white border-slate-200 text-slate-800';
+  const navButtonClass = (active) => {
+    if (active) {
+      return 'w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-cyan-400/40 bg-cyan-500/15 text-white shadow-[0_10px_30px_-16px_rgba(56,189,248,0.9)] transition-all';
+    }
+
+    return darkMode
+      ? 'w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent text-slate-200 hover:bg-slate-800/60 hover:border-slate-600 transition-all'
+      : 'w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors hover:bg-slate-100';
+  };
 
   if (!isAuthenticated) {
     return (
@@ -918,25 +928,23 @@ export default function App() {
       {/* === MEJORA 6: Gestión de Múltiples Almacenes === */}
       {/* Sidebar */}
       {view !== 'tv' && (
-      <aside className={`hidden md:flex flex-col w-64 ${darkMode ? 'bg-slate-950' : 'bg-slate-900'} text-white shadow-xl`}>
-        <div className="p-6 flex items-center gap-3 border-b border-slate-800">
-          <div className="bg-blue-600 p-2 rounded-lg">
-            <Box size={24} />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold">Almacén CUU</h1>
-            <p className="text-xs text-slate-400">v2.0 Pro ✨</p>
-          </div>
+      <aside className={`hidden md:flex flex-col w-64 ${darkMode ? 'sidebar-glass border-r border-slate-700/60' : 'bg-slate-900'} text-white shadow-xl`}>
+        <div className="p-5 border-b border-slate-800/70">
+          <img
+            src={liumaqLogo}
+            alt="LIUMAQ"
+            className="w-full h-auto max-h-16 object-contain"
+          />
         </div>
 
-        <div className="px-4 py-3 border-b border-slate-800">
+        <div className="px-4 py-4 border-b border-slate-800/70">
           <label className="block text-xs text-slate-400 mb-1">Usuario activo</label>
           <p className="text-sm font-semibold text-white">{activeUser?.username}</p>
-          <p className="text-xs text-blue-300 mt-1">Rol: {activeUser?.role}</p>
-          <p className="text-[11px] text-emerald-300 mt-1">Panel: {panelTypeLabel}</p>
+          <p className="text-xs text-cyan-300 mt-1">{activeUser?.role}</p>
+          <p className="text-[11px] text-emerald-300/90 mt-1">Panel: {panelTypeLabel}</p>
           <button
             onClick={handleLogout}
-            className="mt-3 w-full rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm py-2"
+            className="mt-3 w-full rounded-lg bg-red-600/80 hover:bg-red-500 text-white text-sm py-2 border border-red-400/30"
           >
             Cerrar sesión
           </button>
@@ -944,47 +952,47 @@ export default function App() {
 
         <nav className="flex-1 p-4 space-y-2">
           {permissions.canViewDashboard && (
-            <button onClick={() => setView('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${view === 'dashboard' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}>
+            <button onClick={() => setView('dashboard')} className={navButtonClass(view === 'dashboard')}>
               <LayoutDashboard size={20} /> <span>Dashboard</span>
             </button>
           )}
           {permissions.canViewInventory && (
-            <button onClick={() => setView('inventory')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${view === 'inventory' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}>
+            <button onClick={() => setView('inventory')} className={navButtonClass(view === 'inventory')}>
               <Package size={20} /> <span>Inventario</span>
             </button>
           )}
-          <button onClick={() => setView('orders')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${view === 'orders' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}>
+          <button onClick={() => setView('orders')} className={navButtonClass(view === 'orders')}>
             <ClipboardList size={20} /> <span>Pedidos</span>
           </button>
           {permissions.canViewReports && (
-            <button onClick={() => setView('reports')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${view === 'reports' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}>
+            <button onClick={() => setView('reports')} className={navButtonClass(view === 'reports')}>
               <BarChart3 size={20} /> <span>Reportes</span>
             </button>
           )}
-          <button onClick={() => setView('tv')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${view === 'tv' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}>
+          <button onClick={() => setView('tv')} className={navButtonClass(view === 'tv')}>
             <Monitor size={20} /> <span>Pantalla Taller</span>
           </button>
           {permissions.canAssignTechnicians && (
-            <button onClick={() => openAssignmentModal()} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${showAssignmentModal ? 'bg-amber-600' : 'hover:bg-slate-800'}`}>
+            <button onClick={() => openAssignmentModal()} className={navButtonClass(showAssignmentModal)}>
               <User size={20} /> <span>Asignar Técnicos</span>
             </button>
           )}
         </nav>
 
-        <div className="p-4 border-t border-slate-800 space-y-2">
+        <div className="p-4 border-t border-slate-800/70 space-y-2">
           {permissions.canManageData ? (
             <>
-              <button onClick={exportToCSV} className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-sm font-medium rounded-xl transition-colors text-white">
+              <button onClick={exportToCSV} className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl border border-emerald-400/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-200 text-sm font-medium transition-colors">
                 <Download size={16} /> Exportar CSV
               </button>
-              <label className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-blue-600 hover:bg-blue-500 text-sm font-medium rounded-xl cursor-pointer transition-colors text-white">
+              <label className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl border border-blue-400/40 bg-blue-500/10 hover:bg-blue-500/20 text-blue-200 text-sm font-medium cursor-pointer transition-colors">
                 <Upload size={16} /> Importar CSV
                 <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
               </label>
-              <button onClick={downloadBackup} className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-purple-600 hover:bg-purple-500 text-sm font-medium rounded-xl transition-colors text-white">
+              <button onClick={downloadBackup} className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl border border-violet-400/40 bg-violet-500/10 hover:bg-violet-500/20 text-violet-200 text-sm font-medium transition-colors">
                 <Download size={16} /> Backup JSON
               </button>
-              <label className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-indigo-600 hover:bg-indigo-500 text-sm font-medium rounded-xl cursor-pointer transition-colors text-white">
+              <label className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl border border-indigo-400/40 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-200 text-sm font-medium cursor-pointer transition-colors">
                 <Upload size={16} /> Restaurar
                 <input type="file" accept=".json" className="hidden" onChange={restoreBackup} />
               </label>
@@ -992,7 +1000,7 @@ export default function App() {
           ) : (
             <p className="text-xs text-slate-400 px-2">Panel operativo: sin import/export</p>
           )}
-          <button onClick={() => setDarkMode(!darkMode)} className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-slate-700 hover:bg-slate-600 text-sm font-medium rounded-xl transition-colors">
+          <button onClick={() => setDarkMode(!darkMode)} className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl border border-slate-500/50 bg-slate-700/60 hover:bg-slate-700 text-sm font-medium transition-colors">
             {darkMode ? <Sun size={16} /> : <Moon size={16} />}
             {darkMode ? 'Claro' : 'Oscuro'}
           </button>
@@ -1005,9 +1013,12 @@ export default function App() {
         {/* Mobile Header */}
         {view !== 'tv' && (
         <header className={`md:hidden flex items-center justify-between p-4 ${darkMode ? 'bg-slate-950' : 'bg-slate-900'} text-white`}>
-          <div className="flex items-center gap-2">
-            <Box size={24} className="text-blue-500" />
-            <h1 className="font-bold">Almacén</h1>
+          <div className="flex items-center gap-2 min-w-0">
+            <img
+              src={liumaqLogo}
+              alt="LIUMAQ"
+              className="h-8 w-auto object-contain"
+            />
           </div>
           <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>{isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}</button>
         </header>
@@ -1148,13 +1159,13 @@ export default function App() {
           {/* DASHBOARD */}
           {view === 'dashboard' && (
             <div className="space-y-6 max-w-7xl mx-auto">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-4 rounded-2xl border ${darkMode ? 'glass-card border-slate-700/60' : 'bg-white border-slate-200'}`}>
                 <div>
-                  <h2 className="text-3xl font-bold">Resumen General</h2>
-                  <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>En tiempo real</p>
+                  <h2 className="text-3xl font-extrabold tracking-tight">Resumen General</h2>
+                  <p className={`text-sm ${darkMode ? 'text-cyan-200/80' : 'text-slate-500'}`}>En tiempo real</p>
                 </div>
                 <div className="w-full sm:w-64">
-                  <label className="block text-sm font-medium mb-1">🔍 Búsqueda Global</label>
+                  <label className="block text-sm font-medium mb-1">🔎 Búsqueda Global</label>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input
@@ -1184,25 +1195,54 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                <div className={`${cardColor} p-6 rounded-2xl shadow-sm border`}>
-                  <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'} mb-2`}>Valor Total</p>
-                  <h3 className="text-2xl font-bold text-blue-500">{formatMoney(metrics.totalValue)}</h3>
+                <div className={`${cardColor} metric-card p-5 rounded-2xl shadow-sm border`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-500'} mb-2`}>Valor Total</p>
+                      <h3 className="text-3xl font-extrabold text-cyan-300">{formatMoney(metrics.totalValue)}</h3>
+                    </div>
+                    <BarChart3 size={20} className="text-cyan-300" />
+                  </div>
                 </div>
-                <div className={`${cardColor} p-6 rounded-2xl shadow-sm border`}>
-                  <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'} mb-2`}>SKUs</p>
-                  <h3 className="text-2xl font-bold text-emerald-500">{metrics.totalItems}</h3>
+
+                <div className={`${cardColor} metric-card p-5 rounded-2xl shadow-sm border`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-500'} mb-2`}>SKUs</p>
+                      <h3 className="text-3xl font-extrabold text-emerald-300">{metrics.totalItems}</h3>
+                    </div>
+                    <Package size={20} className="text-emerald-300" />
+                  </div>
                 </div>
-                <div className={`${cardColor} p-6 rounded-2xl shadow-sm border`}>
-                  <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'} mb-2`}>Unidades</p>
-                  <h3 className="text-2xl font-bold">{metrics.totalUnits}</h3>
+
+                <div className={`${cardColor} metric-card p-5 rounded-2xl shadow-sm border`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-500'} mb-2`}>Unidades</p>
+                      <h3 className="text-3xl font-extrabold text-slate-100">{metrics.totalUnits}</h3>
+                    </div>
+                    <Box size={20} className="text-slate-300" />
+                  </div>
                 </div>
-                <div className={`${cardColor} p-6 rounded-2xl shadow-sm border`}>
-                  <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'} mb-2`}>Críticos</p>
-                  <h3 className="text-2xl font-bold text-red-500">{metrics.lowStockCount}</h3>
+
+                <div className={`${cardColor} metric-card p-5 rounded-2xl shadow-sm border`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-500'} mb-2`}>Críticos</p>
+                      <h3 className="text-3xl font-extrabold text-rose-300">{metrics.lowStockCount}</h3>
+                    </div>
+                    <AlertTriangle size={20} className="text-rose-300" />
+                  </div>
                 </div>
-                <div className={`${cardColor} p-6 rounded-2xl shadow-sm border`}>
-                  <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'} mb-2`}>Reservado</p>
-                  <h3 className="text-2xl font-bold text-amber-500">{metrics.totalReserved}</h3>
+
+                <div className={`${cardColor} metric-card p-5 rounded-2xl shadow-sm border`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-500'} mb-2`}>Reservado</p>
+                      <h3 className="text-3xl font-extrabold text-amber-300">{metrics.totalReserved}</h3>
+                    </div>
+                    <ClipboardList size={20} className="text-amber-300" />
+                  </div>
                 </div>
               </div>
 
