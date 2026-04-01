@@ -1562,7 +1562,7 @@ export default function App() {
 
         <div className="px-4 py-4 border-b border-slate-800/70">
           <label className="block text-xs text-slate-400 mb-1">Usuario activo</label>
-          <p className="text-sm font-semibold text-white">{activeUser?.username}</p>
+          <p className="text-sm font-semibold text-white">{activeUser?.name || activeUser?.username || currentUser}</p>
           <p className="text-xs text-cyan-300 mt-1">{activeUser?.role}</p>
           <p className="text-[11px] text-emerald-300/90 mt-1">Panel: {panelTypeLabel}</p>
           <button
@@ -2090,13 +2090,13 @@ export default function App() {
                     <div className="mt-1 flex gap-2">
                       <button
                         onClick={() => setOrderQuickFilters(prev => ({ ...prev, date: toLocalDateKey(new Date()) }))}
-                        className="px-2 py-1 rounded bg-blue-600 text-white text-[11px] hover:bg-blue-500"
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${orderQuickFilters.date !== 'ALL' ? 'bg-blue-600 border-blue-500 text-white hover:bg-blue-500' : darkMode ? 'bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700' : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'}`}
                       >
                         Hoy
                       </button>
                       <button
                         onClick={() => setOrderQuickFilters(prev => ({ ...prev, date: 'ALL' }))}
-                        className="px-2 py-1 rounded bg-slate-600 text-white text-[11px] hover:bg-slate-500"
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${orderQuickFilters.date === 'ALL' ? 'bg-blue-600 border-blue-500 text-white hover:bg-blue-500' : darkMode ? 'bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700' : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'}`}
                       >
                         Todas las fechas
                       </button>
