@@ -2078,7 +2078,7 @@ export default function App() {
               )}
 
               <div className={`${cardColor} rounded-2xl border p-4`}>
-                <div className="flex flex-col lg:flex-row lg:items-end gap-3">
+                <div className="flex flex-col lg:flex-row lg:items-start gap-3">
                   <div className="flex-1 min-w-[200px]">
                     <label className="block text-xs font-semibold mb-1">Fecha programada</label>
                     <div className="relative">
@@ -2138,7 +2138,7 @@ export default function App() {
 
                   <button
                     onClick={() => setOrderQuickFilters({ client: 'ALL', technician: 'ALL', date: toLocalDateKey(new Date()) })}
-                    className="px-4 py-2 rounded-lg bg-slate-600 text-white text-sm hover:bg-slate-500"
+                    className="self-start lg:self-end px-4 py-2 rounded-lg bg-slate-600 text-white text-sm hover:bg-slate-500"
                   >
                     Limpiar filtros
                   </button>
