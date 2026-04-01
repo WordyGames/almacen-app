@@ -2081,22 +2081,24 @@ export default function App() {
                 <div className="flex flex-col lg:flex-row lg:items-end gap-3">
                   <div className="flex-1 min-w-[200px]">
                     <label className="block text-xs font-semibold mb-1">Fecha programada</label>
-                    <input
-                      type="date"
-                      value={orderQuickFilters.date === 'ALL' ? '' : orderQuickFilters.date}
-                      onChange={e => setOrderQuickFilters(prev => ({ ...prev, date: e.target.value }))}
-                      className={`w-full px-3 py-2 rounded-lg border text-sm ${inputColor}`}
-                    />
-                    <div className="mt-1 flex gap-2">
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={orderQuickFilters.date === 'ALL' ? '' : orderQuickFilters.date}
+                        onChange={e => setOrderQuickFilters(prev => ({ ...prev, date: e.target.value }))}
+                        className={`w-full px-3 py-2.5 rounded-xl border text-sm shadow-sm ${inputColor} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                      />
+                    </div>
+                    <div className={`mt-2 inline-flex rounded-xl border p-1 ${darkMode ? 'bg-slate-900/60 border-slate-700' : 'bg-slate-100 border-slate-300'}`}>
                       <button
                         onClick={() => setOrderQuickFilters(prev => ({ ...prev, date: toLocalDateKey(new Date()) }))}
-                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${orderQuickFilters.date !== 'ALL' ? 'bg-blue-600 border-blue-500 text-white hover:bg-blue-500' : darkMode ? 'bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700' : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'}`}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${orderQuickFilters.date !== 'ALL' ? 'bg-blue-600 text-white shadow-sm' : darkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-white'}`}
                       >
                         Hoy
                       </button>
                       <button
                         onClick={() => setOrderQuickFilters(prev => ({ ...prev, date: 'ALL' }))}
-                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${orderQuickFilters.date === 'ALL' ? 'bg-blue-600 border-blue-500 text-white hover:bg-blue-500' : darkMode ? 'bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700' : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'}`}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${orderQuickFilters.date === 'ALL' ? 'bg-blue-600 text-white shadow-sm' : darkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-white'}`}
                       >
                         Todas las fechas
                       </button>
