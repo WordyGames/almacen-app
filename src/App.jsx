@@ -68,10 +68,39 @@ const getEmptyUserForm = () => ({
   password: '',
 });
 
+const toLocalDateKey = (value = new Date()) => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const diffHours = (startValue, endValue) => {
+  const start = new Date(startValue);
+  const end = new Date(endValue);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  return (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+};
+
+const formatDuration = (hoursValue) => {
+  if (hoursValue === null || Number.isNaN(hoursValue)) return 'N/D';
+  const totalMinutes = Math.max(0, Math.round(hoursValue * 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+};
+
+const csvEscape = (value) => {
+  return `"${String(value ?? '').replace(/"/g, '""')}"`;
+};
+
 export default function App() {
   // === MEJORA 1: localStorage - Persistencia de datos ===
   const [inventory, setInventory] = useLocalStorage('almacen-inventory', INITIAL_DATA);
   const [orders, setOrders] = useLocalStorage('almacen-orders', INITIAL_ORDERS);
+  const [returnRequests, setReturnRequests] = useLocalStorage('almacen-return-requests', []);
   const [history, setHistory] = useLocalStorage('almacen-history', []);
   const [darkMode, setDarkMode] = useLocalStorage('almacen-darkmode-v2', true);
   const [systemUsers, setSystemUsers] = useLocalStorage('almacen-system-users', SYSTEM_USERS);
@@ -120,6 +149,9 @@ export default function App() {
       canManageData: isAdmin,
       canCreateOrder: isAdmin || isTech || isService,
       canCompleteOrder: canFulfillByUser || isAdmin || isTech || isService,
+      canViewReturns: isAdmin || isTech,
+      canCreateReturn: isAdmin || isTech,
+      canAuthorizeReturn: isAdmin,
       canViewReports: isAdmin || isService,
       canViewSensitiveUsers: isAdmin,
       canViewTv: true,
@@ -136,6 +168,7 @@ export default function App() {
     const allowedViews = new Set(['orders', 'tv']);
     if (permissions.canViewDashboard) allowedViews.add('dashboard');
     if (permissions.canViewInventory) allowedViews.add('inventory');
+    if (permissions.canViewReturns) allowedViews.add('returns');
     if (permissions.canViewReports) allowedViews.add('reports');
     if (permissions.canManageUsers) allowedViews.add('users');
 
@@ -148,6 +181,7 @@ export default function App() {
     view,
     permissions.canViewDashboard,
     permissions.canViewInventory,
+    permissions.canViewReturns,
     permissions.canViewReports,
     permissions.canManageUsers,
   ]);
@@ -205,10 +239,13 @@ export default function App() {
   const [newOrderItems, setNewOrderItems] = useState([{ id: '', qty: 1 }]);
   const [orderErrors, setOrderErrors] = useState({});
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
-  const [assignmentForm, setAssignmentForm] = useState({ orderId: '', technicianId: '' });
+  const [assignmentForm, setAssignmentForm] = useState({ orderId: '', technicianId: '', scheduledDate: toLocalDateKey(new Date()) });
   const [bulkTechnicianId, setBulkTechnicianId] = useState('');
   const [bulkOrderIds, setBulkOrderIds] = useState([]);
-  const [orderQuickFilters, setOrderQuickFilters] = useState({ client: 'ALL', technician: 'ALL' });
+  const [orderQuickFilters, setOrderQuickFilters] = useState({ client: 'ALL', technician: 'ALL', date: toLocalDateKey(new Date()) });
+  const [dailyReportDate, setDailyReportDate] = useState(toLocalDateKey(new Date()));
+  const [returnForm, setReturnForm] = useState({ orderId: '', itemId: '', qty: 1, reason: '', notes: '' });
+  const [returnErrors, setReturnErrors] = useState({});
 
   const technicianUsers = useMemo(
     () => systemUsers.filter(u => (u.role || '').toLowerCase().includes('tecnico')),
@@ -249,6 +286,21 @@ export default function App() {
     return new Date();
   }, []);
 
+  const getOrderScheduledDate = useCallback((order) => {
+    if (order?.scheduledDate) return order.scheduledDate;
+    if (order?.date) return order.date;
+    return toLocalDateKey(getOrderCreatedAt(order));
+  }, [getOrderCreatedAt]);
+
+  const getOrderCompletedAt = useCallback((order) => {
+    if (order?.completedAt) {
+      const completed = new Date(order.completedAt);
+      if (!Number.isNaN(completed.getTime())) return completed;
+    }
+    if (order?.status === 'completed') return getOrderCreatedAt(order);
+    return null;
+  }, [getOrderCreatedAt]);
+
   const unassignedPendingOrders = useMemo(
     () => orders.filter(o => o.status === 'pending' && !o.assignedTo),
     [orders]
@@ -263,6 +315,53 @@ export default function App() {
     () => Array.from(new Set(orders.map(o => o.assignedTo).filter(Boolean))).sort(),
     [orders]
   );
+
+  const completedOrdersForReturns = useMemo(() => {
+    const completed = orders.filter(order => order.status === 'completed');
+    if (permissions.canAuthorizeReturn) return completed;
+    return completed.filter(order => order.assignedTo === currentUser);
+  }, [orders, permissions.canAuthorizeReturn, currentUser]);
+
+  const selectedReturnOrder = useMemo(
+    () => completedOrdersForReturns.find(order => order.id === returnForm.orderId) || null,
+    [completedOrdersForReturns, returnForm.orderId]
+  );
+
+  const selectedReturnOrderItem = useMemo(
+    () => selectedReturnOrder?.items?.find(item => item.id === returnForm.itemId) || null,
+    [selectedReturnOrder, returnForm.itemId]
+  );
+
+  const getRequestedReturnQty = useCallback((orderId, itemId) => {
+    if (!orderId || !itemId) return 0;
+    return returnRequests
+      .filter(req => req.orderId === orderId && req.itemId === itemId && req.status !== 'rejected')
+      .reduce((sum, req) => sum + (parseInt(req.qty, 10) || 0), 0);
+  }, [returnRequests]);
+
+  const remainingReturnQty = useMemo(() => {
+    if (!selectedReturnOrderItem || !returnForm.orderId || !returnForm.itemId) return 0;
+    const requested = getRequestedReturnQty(returnForm.orderId, returnForm.itemId);
+    return Math.max(0, selectedReturnOrderItem.qty - requested);
+  }, [selectedReturnOrderItem, returnForm.orderId, returnForm.itemId, getRequestedReturnQty]);
+
+  const visibleReturnRequests = useMemo(() => {
+    const source = permissions.canAuthorizeReturn
+      ? returnRequests
+      : returnRequests.filter(req => req.requestedBy === currentUser);
+
+    return [...source].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }, [returnRequests, permissions.canAuthorizeReturn, currentUser]);
+
+  const returnStats = useMemo(() => {
+    return returnRequests.reduce((acc, req) => {
+      acc.total += 1;
+      if (req.status === 'pending') acc.pending += 1;
+      if (req.status === 'approved') acc.approved += 1;
+      if (req.status === 'rejected') acc.rejected += 1;
+      return acc;
+    }, { total: 0, pending: 0, approved: 0, rejected: 0 });
+  }, [returnRequests]);
 
   const inventoryDescriptionById = useMemo(() => {
     return inventory.reduce((acc, item) => {
@@ -284,9 +383,10 @@ export default function App() {
       const matchClient = orderQuickFilters.client === 'ALL' || order.client === orderQuickFilters.client;
       const matchTechnician = orderQuickFilters.technician === 'ALL'
         || (orderQuickFilters.technician === 'UNASSIGNED' ? !order.assignedTo : order.assignedTo === orderQuickFilters.technician);
-      return matchClient && matchTechnician;
+      const matchDate = orderQuickFilters.date === 'ALL' || getOrderScheduledDate(order) === orderQuickFilters.date;
+      return matchClient && matchTechnician && matchDate;
     });
-  }, [orders, orderQuickFilters]);
+  }, [orders, orderQuickFilters, getOrderScheduledDate]);
 
   const activeOrderFilterChips = useMemo(() => {
     const chips = [];
@@ -311,12 +411,50 @@ export default function App() {
       });
     }
 
+    if (orderQuickFilters.date !== 'ALL') {
+      chips.push({
+        key: 'date',
+        label: `Fecha: ${orderQuickFilters.date}`,
+        clear: () => setOrderQuickFilters(prev => ({ ...prev, date: 'ALL' })),
+      });
+    }
+
     return chips;
   }, [orderQuickFilters, systemUsers]);
 
   useEffect(() => {
     setBulkOrderIds(prev => prev.filter(id => orders.some(o => o.id === id && o.status === 'pending')));
   }, [orders]);
+
+  useEffect(() => {
+    if (!returnForm.orderId) {
+      if (returnForm.itemId) {
+        setReturnForm(prev => ({ ...prev, itemId: '', qty: 1 }));
+      }
+      return;
+    }
+
+    const targetOrder = completedOrdersForReturns.find(order => order.id === returnForm.orderId);
+    if (!targetOrder || !targetOrder.items?.length) {
+      if (returnForm.itemId) {
+        setReturnForm(prev => ({ ...prev, itemId: '', qty: 1 }));
+      }
+      return;
+    }
+
+    const itemExists = targetOrder.items.some(item => item.id === returnForm.itemId);
+    if (!itemExists) {
+      setReturnForm(prev => ({ ...prev, itemId: targetOrder.items[0].id, qty: 1 }));
+    }
+  }, [returnForm.orderId, returnForm.itemId, completedOrdersForReturns]);
+
+  useEffect(() => {
+    if (!returnForm.itemId || !remainingReturnQty) return;
+    const currentQty = parseInt(returnForm.qty, 10) || 1;
+    if (currentQty > remainingReturnQty) {
+      setReturnForm(prev => ({ ...prev, qty: remainingReturnQty }));
+    }
+  }, [returnForm.itemId, returnForm.qty, remainingReturnQty]);
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -542,6 +680,74 @@ export default function App() {
     addHistory('export', { itemsCount: inventory.length });
   };
 
+  const exportDailyDeliveredReport = () => {
+    if (!permissions.canViewReports) {
+      showToast('⛔ Tu rol no tiene permiso para exportar reportes', 'error');
+      return;
+    }
+
+    const completedForDay = orders
+      .filter(order => order.status === 'completed')
+      .filter(order => {
+        const completedAt = getOrderCompletedAt(order);
+        if (!completedAt) return false;
+        return toLocalDateKey(completedAt) === dailyReportDate;
+      });
+
+    if (completedForDay.length === 0) {
+      showToast('⚠️ No hay pedidos entregados en la fecha seleccionada', 'error');
+      return;
+    }
+
+    const headers = [
+      'Pedido',
+      'Cliente',
+      'Tecnico',
+      'FechaProgramada',
+      'Creado',
+      'PrimeraAsignacion',
+      'Entregado',
+      'TiempoRespuestaHoras',
+      'TiempoEntregaHoras',
+      'Items',
+    ];
+
+    const rows = completedForDay.map(order => {
+      const createdAt = getOrderCreatedAt(order);
+      const assignedAt = order.firstAssignedAt ? new Date(order.firstAssignedAt) : null;
+      const completedAt = getOrderCompletedAt(order);
+      const responseHours = assignedAt ? diffHours(createdAt, assignedAt) : null;
+      const deliveryHours = completedAt ? diffHours(createdAt, completedAt) : null;
+      const itemsSummary = order.items
+        .map(item => `${item.id} - ${getOrderItemDescription(item)} x${item.qty}`)
+        .join(' | ');
+
+      return [
+        order.id,
+        order.client || '',
+        order.assignedTo || 'Sin asignar',
+        getOrderScheduledDate(order),
+        createdAt.toLocaleString('es-MX'),
+        assignedAt ? assignedAt.toLocaleString('es-MX') : 'N/D',
+        completedAt ? completedAt.toLocaleString('es-MX') : 'N/D',
+        responseHours === null ? 'N/D' : responseHours.toFixed(2),
+        deliveryHours === null ? 'N/D' : deliveryHours.toFixed(2),
+        itemsSummary,
+      ].map(csvEscape).join(',');
+    });
+
+    const csvContent = `data:text/csv;charset=utf-8,${headers.join(',')}\n${rows.join('\n')}`;
+    const link = document.createElement('a');
+    link.setAttribute('href', encodeURI(csvContent));
+    link.setAttribute('download', `Reporte_Entregados_${dailyReportDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    addHistory('report-daily-exported', { date: dailyReportDate, orders: completedForDay.length });
+    showToast(`✅ Reporte diario (${completedForDay.length} pedido(s)) exportado`, 'success');
+  };
+
   const handleFileUpload = (event) => {
     if (!permissions.canManageData) {
       showToast('⛔ Tu rol no tiene permiso para importar', 'error');
@@ -711,6 +917,7 @@ export default function App() {
       notes: newOrderNotes.trim(),
       assignedTo: null,
       createdAt: new Date().toISOString(),
+      scheduledDate: toLocalDateKey(new Date()),
       date: new Date().toISOString().split('T')[0],
       status: 'pending',
       items: itemsWithDesc,
@@ -737,9 +944,10 @@ export default function App() {
       setAssignmentForm({
         orderId: order.id,
         technicianId: order.assignedTo || '',
+        scheduledDate: getOrderScheduledDate(order),
       });
     } else {
-      setAssignmentForm({ orderId: '', technicianId: '' });
+      setAssignmentForm({ orderId: '', technicianId: '', scheduledDate: toLocalDateKey(new Date()) });
     }
 
     setShowAssignmentModal(true);
@@ -751,8 +959,8 @@ export default function App() {
       showToast('⛔ Solo el planeador puede asignar técnicos', 'error');
       return;
     }
-    if (!assignmentForm.orderId || !assignmentForm.technicianId) {
-      showToast('❌ Selecciona orden y técnico', 'error');
+    if (!assignmentForm.orderId || !assignmentForm.technicianId || !assignmentForm.scheduledDate) {
+      showToast('❌ Selecciona orden, técnico y fecha programada', 'error');
       return;
     }
 
@@ -763,25 +971,49 @@ export default function App() {
     }
 
     const previousTechnician = targetOrder.assignedTo || null;
+    const previousScheduledDate = getOrderScheduledDate(targetOrder);
     if (previousTechnician === assignmentForm.technicianId) {
-      showToast('ℹ️ La orden ya está asignada a ese técnico', 'error');
-      return;
+      if (previousScheduledDate === assignmentForm.scheduledDate) {
+        showToast('ℹ️ La orden ya está asignada a ese técnico y fecha', 'error');
+        return;
+      }
     }
 
-    setOrders(orders.map(o => o.id === assignmentForm.orderId ? { ...o, assignedTo: assignmentForm.technicianId } : o));
+    const nowIso = new Date().toISOString();
+
+    setOrders(orders.map(o => (
+      o.id === assignmentForm.orderId
+        ? {
+          ...o,
+          assignedTo: assignmentForm.technicianId,
+          scheduledDate: assignmentForm.scheduledDate,
+          firstAssignedAt: o.firstAssignedAt || nowIso,
+          lastAssignedAt: nowIso,
+        }
+        : o
+    )));
     setShowAssignmentModal(false);
-    setAssignmentForm({ orderId: '', technicianId: '' });
+    setAssignmentForm({ orderId: '', technicianId: '', scheduledDate: toLocalDateKey(new Date()) });
 
     addHistory(previousTechnician ? 'order-reassigned' : 'order-assigned', {
       orderId: assignmentForm.orderId,
       from: previousTechnician,
       assignedTo: assignmentForm.technicianId,
+      scheduledDate: assignmentForm.scheduledDate,
     });
+
+    if (previousScheduledDate !== assignmentForm.scheduledDate) {
+      addHistory('order-rescheduled', {
+        orderId: assignmentForm.orderId,
+        fromDate: previousScheduledDate,
+        toDate: assignmentForm.scheduledDate,
+      });
+    }
 
     showToast(
       previousTechnician
-        ? `✅ Orden ${assignmentForm.orderId} re-asignada a ${assignmentForm.technicianId}`
-        : `✅ Orden ${assignmentForm.orderId} asignada a ${assignmentForm.technicianId}`,
+        ? `✅ Orden ${assignmentForm.orderId} re-asignada a ${assignmentForm.technicianId} (${assignmentForm.scheduledDate})`
+        : `✅ Orden ${assignmentForm.orderId} asignada a ${assignmentForm.technicianId} (${assignmentForm.scheduledDate})`,
       'success'
     );
   };
@@ -844,10 +1076,183 @@ export default function App() {
         });
       });
       setInventory(updated);
-      setOrders(orders.map(o => (o.id === orderId ? { ...o, status: 'completed' } : o)));
+      setOrders(orders.map(o => (o.id === orderId ? { ...o, status: 'completed', completedAt: new Date().toISOString() } : o)));
       addHistory('order-completed', { orderId });
       showToast(`✅ Pedido ${orderId} surtido`, 'success');
     }
+  };
+
+  const generateReturnId = useCallback(() => {
+    const maxId = returnRequests.reduce((max, req) => {
+      const numericPart = parseInt((req.id || '').replace(/\D/g, ''), 10);
+      if (Number.isNaN(numericPart)) return max;
+      return Math.max(max, numericPart);
+    }, 0);
+
+    return `DEV-${String(maxId + 1).padStart(3, '0')}`;
+  }, [returnRequests]);
+
+  const handleCreateReturnRequest = e => {
+    e.preventDefault();
+
+    if (!permissions.canCreateReturn) {
+      showToast('⛔ Tu rol no tiene permiso para solicitar devoluciones', 'error');
+      return;
+    }
+
+    const errors = {};
+    const targetOrder = completedOrdersForReturns.find(order => order.id === returnForm.orderId);
+    const qty = parseInt(returnForm.qty, 10);
+
+    if (!returnForm.orderId) errors.orderId = 'Selecciona una orden surtida';
+    if (!returnForm.itemId) errors.itemId = 'Selecciona un artículo';
+    if (!returnForm.reason.trim() || returnForm.reason.trim().length < 5) {
+      errors.reason = 'Describe brevemente el motivo (mínimo 5 caracteres)';
+    }
+    if (Number.isNaN(qty) || qty <= 0) errors.qty = 'Cantidad inválida';
+
+    if (!targetOrder) {
+      errors.orderId = 'La orden seleccionada no está disponible';
+    }
+
+    const targetItem = targetOrder?.items?.find(item => item.id === returnForm.itemId);
+    if (!targetItem) {
+      errors.itemId = 'Artículo no encontrado en la orden';
+    }
+
+    if (targetItem && !Number.isNaN(qty)) {
+      const requestedQty = getRequestedReturnQty(targetOrder.id, targetItem.id);
+      const remainingQty = Math.max(0, targetItem.qty - requestedQty);
+      if (remainingQty <= 0) {
+        errors.qty = 'Ese artículo ya no tiene piezas disponibles para devolver';
+      } else if (qty > remainingQty) {
+        errors.qty = `Solo puedes devolver hasta ${remainingQty} pieza(s)`;
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setReturnErrors(errors);
+      showToast('❌ Revisa los datos de la devolución', 'error');
+      return;
+    }
+
+    const newRequest = {
+      id: generateReturnId(),
+      orderId: targetOrder.id,
+      itemId: targetItem.id,
+      itemDesc: getOrderItemDescription(targetItem),
+      qty,
+      client: targetOrder.client,
+      assignedTo: targetOrder.assignedTo,
+      reason: returnForm.reason.trim(),
+      notes: returnForm.notes.trim(),
+      status: 'pending',
+      requestedBy: currentUser,
+      requestedByName: activeUser?.name || currentUser,
+      createdAt: new Date().toISOString(),
+      decidedAt: null,
+      decidedBy: null,
+      decisionNote: '',
+    };
+
+    setReturnRequests(prev => [newRequest, ...prev]);
+    setReturnForm({ orderId: '', itemId: '', qty: 1, reason: '', notes: '' });
+    setReturnErrors({});
+    addHistory('return-requested', {
+      returnId: newRequest.id,
+      orderId: newRequest.orderId,
+      itemId: newRequest.itemId,
+      qty: newRequest.qty,
+    });
+    showToast(`✅ Solicitud ${newRequest.id} enviada para autorización`, 'success');
+  };
+
+  const handleApproveReturn = requestId => {
+    if (!permissions.canAuthorizeReturn) {
+      showToast('⛔ Solo administradores pueden autorizar devoluciones', 'error');
+      return;
+    }
+
+    const request = returnRequests.find(req => req.id === requestId);
+    if (!request || request.status !== 'pending') {
+      showToast('⚠️ Esta devolución ya fue procesada', 'error');
+      return;
+    }
+
+    const inventoryItem = inventory.find(item => item.id === request.itemId);
+    if (!inventoryItem) {
+      showToast('❌ No existe el artículo en inventario para regresar stock', 'error');
+      return;
+    }
+
+    const decisionNote = window.prompt('Comentario de autorización (opcional):', '') || '';
+
+    setInventory(prev => prev.map(item => {
+      if (item.id !== request.itemId) return item;
+      const newStock = item.stock + request.qty;
+      const newAvailable = Math.max(0, newStock - item.reserved);
+      return {
+        ...item,
+        stock: newStock,
+        available: newAvailable,
+        totalCost: newAvailable * item.cost,
+      };
+    }));
+
+    setReturnRequests(prev => prev.map(req => (
+      req.id === requestId
+        ? {
+          ...req,
+          status: 'approved',
+          decidedAt: new Date().toISOString(),
+          decidedBy: currentUser,
+          decisionNote: decisionNote.trim(),
+        }
+        : req
+    )));
+
+    addHistory('return-approved', {
+      returnId: request.id,
+      orderId: request.orderId,
+      itemId: request.itemId,
+      qty: request.qty,
+    });
+    showToast(`✅ Devolución ${request.id} autorizada y stock actualizado`, 'success');
+  };
+
+  const handleRejectReturn = requestId => {
+    if (!permissions.canAuthorizeReturn) {
+      showToast('⛔ Solo administradores pueden rechazar devoluciones', 'error');
+      return;
+    }
+
+    const request = returnRequests.find(req => req.id === requestId);
+    if (!request || request.status !== 'pending') {
+      showToast('⚠️ Esta devolución ya fue procesada', 'error');
+      return;
+    }
+
+    const decisionNote = window.prompt('Motivo de rechazo (opcional):', '') || '';
+
+    setReturnRequests(prev => prev.map(req => (
+      req.id === requestId
+        ? {
+          ...req,
+          status: 'rejected',
+          decidedAt: new Date().toISOString(),
+          decidedBy: currentUser,
+          decisionNote: decisionNote.trim(),
+        }
+        : req
+    )));
+
+    addHistory('return-rejected', {
+      returnId: request.id,
+      orderId: request.orderId,
+      itemId: request.itemId,
+      qty: request.qty,
+    });
+    showToast(`✅ Devolución ${request.id} rechazada`, 'success');
   };
 
   // Sorting
@@ -879,6 +1284,43 @@ export default function App() {
   // === MEJORA 5: Reportes y Estadísticas ===
   const metrics = useMemo(() => calculateMetrics(inventory), [inventory]);
   const orderStats = useMemo(() => getOrderStats(orders), [orders]);
+  const dailyCompletedOrders = useMemo(() => {
+    return orders
+      .filter(order => order.status === 'completed')
+      .filter(order => {
+        const completedAt = getOrderCompletedAt(order);
+        if (!completedAt) return false;
+        return toLocalDateKey(completedAt) === dailyReportDate;
+      });
+  }, [orders, getOrderCompletedAt, dailyReportDate]);
+
+  const dailyReportSummary = useMemo(() => {
+    const totals = dailyCompletedOrders.reduce((acc, order) => {
+      const createdAt = getOrderCreatedAt(order);
+      const completedAt = getOrderCompletedAt(order);
+      const responseHours = order.firstAssignedAt ? diffHours(createdAt, order.firstAssignedAt) : null;
+      const deliveryHours = completedAt ? diffHours(createdAt, completedAt) : null;
+
+      if (responseHours !== null) {
+        acc.responseTotal += responseHours;
+        acc.responseCount += 1;
+      }
+
+      if (deliveryHours !== null) {
+        acc.deliveryTotal += deliveryHours;
+        acc.deliveryCount += 1;
+      }
+
+      return acc;
+    }, { responseTotal: 0, responseCount: 0, deliveryTotal: 0, deliveryCount: 0 });
+
+    return {
+      delivered: dailyCompletedOrders.length,
+      avgResponseHours: totals.responseCount ? totals.responseTotal / totals.responseCount : null,
+      avgDeliveryHours: totals.deliveryCount ? totals.deliveryTotal / totals.deliveryCount : null,
+    };
+  }, [dailyCompletedOrders, getOrderCreatedAt, getOrderCompletedAt]);
+
   const warehouses = useMemo(() => Array.from(new Set(inventory.map(i => i.warehouse))), [inventory]);
   const tvOrders = useMemo(() => {
     // Planeador ve todas; técnicos ven solo sus órdenes asignadas
@@ -946,8 +1388,13 @@ export default function App() {
       'order-created': 'Pedido creado',
       'order-assigned': 'Asignado',
       'order-reassigned': 'Reasignado',
+      'order-rescheduled': 'Reprogramado',
       'order-bulk-assigned': 'Asignación masiva',
       'order-completed': 'Pedido surtido',
+      'report-daily-exported': 'Reporte diario exportado',
+      'return-requested': 'Devolución solicitada',
+      'return-approved': 'Devolución autorizada',
+      'return-rejected': 'Devolución rechazada',
     };
     return labels[action] || action;
   };
@@ -966,6 +1413,18 @@ export default function App() {
   const statusBadgeClass = (status) => {
     if (status === 'completed') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
     return 'bg-amber-100 text-amber-700 border-amber-200';
+  };
+
+  const returnStatusBadgeClass = (status) => {
+    if (status === 'approved') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+    if (status === 'rejected') return 'bg-red-100 text-red-700 border-red-200';
+    return 'bg-amber-100 text-amber-700 border-amber-200';
+  };
+
+  const returnStatusLabel = (status) => {
+    if (status === 'approved') return 'Autorizada';
+    if (status === 'rejected') return 'Rechazada';
+    return 'Pendiente';
   };
 
   const tvSlaSummary = useMemo(() => {
@@ -1128,6 +1587,11 @@ export default function App() {
           <button onClick={() => setView('orders')} className={navButtonClass(view === 'orders')}>
             <ClipboardList size={20} /> <span>Pedidos</span>
           </button>
+          {permissions.canViewReturns && (
+            <button onClick={() => setView('returns')} className={navButtonClass(view === 'returns')}>
+              <RotateCcw size={20} /> <span>Devoluciones</span>
+            </button>
+          )}
           {permissions.canViewReports && (
             <button onClick={() => setView('reports')} className={navButtonClass(view === 'reports')}>
               <BarChart3 size={20} /> <span>Reportes</span>
@@ -1203,6 +1667,9 @@ export default function App() {
                 <button onClick={() => { setView('inventory'); setIsMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800 rounded"><Package /> Inventario</button>
               )}
               <button onClick={() => { setView('orders'); setIsMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800 rounded"><ClipboardList /> Pedidos</button>
+              {permissions.canViewReturns && (
+                <button onClick={() => { setView('returns'); setIsMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800 rounded"><RotateCcw /> Devoluciones</button>
+              )}
               {permissions.canViewReports && (
                 <button onClick={() => { setView('reports'); setIsMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800 rounded"><BarChart3 /> Reportes</button>
               )}
@@ -1613,6 +2080,30 @@ export default function App() {
               <div className={`${cardColor} rounded-2xl border p-4`}>
                 <div className="flex flex-col lg:flex-row lg:items-end gap-3">
                   <div className="flex-1 min-w-[200px]">
+                    <label className="block text-xs font-semibold mb-1">Fecha programada</label>
+                    <input
+                      type="date"
+                      value={orderQuickFilters.date === 'ALL' ? '' : orderQuickFilters.date}
+                      onChange={e => setOrderQuickFilters(prev => ({ ...prev, date: e.target.value }))}
+                      className={`w-full px-3 py-2 rounded-lg border text-sm ${inputColor}`}
+                    />
+                    <div className="mt-1 flex gap-2">
+                      <button
+                        onClick={() => setOrderQuickFilters(prev => ({ ...prev, date: toLocalDateKey(new Date()) }))}
+                        className="px-2 py-1 rounded bg-blue-600 text-white text-[11px] hover:bg-blue-500"
+                      >
+                        Hoy
+                      </button>
+                      <button
+                        onClick={() => setOrderQuickFilters(prev => ({ ...prev, date: 'ALL' }))}
+                        className="px-2 py-1 rounded bg-slate-600 text-white text-[11px] hover:bg-slate-500"
+                      >
+                        Todas las fechas
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 min-w-[200px]">
                     <label className="block text-xs font-semibold mb-1">Filtrar por cliente</label>
                     <select
                       value={orderQuickFilters.client}
@@ -1644,7 +2135,7 @@ export default function App() {
                   </div>
 
                   <button
-                    onClick={() => setOrderQuickFilters({ client: 'ALL', technician: 'ALL' })}
+                    onClick={() => setOrderQuickFilters({ client: 'ALL', technician: 'ALL', date: toLocalDateKey(new Date()) })}
                     className="px-4 py-2 rounded-lg bg-slate-600 text-white text-sm hover:bg-slate-500"
                   >
                     Limpiar filtros
@@ -1709,6 +2200,9 @@ export default function App() {
                           <p className="text-xs font-semibold break-words">👤 {order.client}</p>
                           <p className="text-[11px] break-words">
                             🔧 {order.assignedTo ? systemUsers.find(u => u.username === order.assignedTo)?.name || order.assignedTo : 'Sin asignar'}
+                          </p>
+                          <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                            📅 Programado: {getOrderScheduledDate(order)}
                           </p>
                           <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
                             📦 {order.items.length} artículo(s) · {totalQty} pieza(s)
@@ -1801,6 +2295,7 @@ export default function App() {
                                 <div className="p-2 sm:p-3 text-[11px] sm:text-xs space-y-1.5 sm:space-y-2">
                                   <p className="font-semibold">👤 {order.client}</p>
                                   <p>🔧 {order.assignedTo ? systemUsers.find(u => u.username === order.assignedTo)?.name || order.assignedTo : 'Sin asignar'}</p>
+                                  <p className={`${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>📅 Programado: {getOrderScheduledDate(order)}</p>
                                   <p className={`hidden sm:block ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
                                     🕒 {getOrderCreatedAt(order).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
                                   </p>
@@ -1954,6 +2449,251 @@ export default function App() {
             </div>
           )}
 
+          {/* DEVOLUCIONES */}
+          {view === 'returns' && permissions.canViewReturns && (
+            <div className="space-y-6 max-w-7xl mx-auto">
+              <div className={`rounded-2xl border p-4 md:p-6 ${darkMode ? 'bg-gradient-to-r from-slate-900 to-slate-800 border-slate-700' : 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-100'} flex flex-col md:flex-row md:items-center md:justify-between gap-4`}>
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-extrabold">Zona de Devoluciones</h2>
+                  <p className={`text-sm mt-1 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                    Los técnicos solicitan devoluciones y administración autoriza o rechaza.
+                  </p>
+                </div>
+                <div className={`text-xs rounded-lg px-3 py-2 ${darkMode ? 'bg-slate-800 border border-slate-700 text-slate-300' : 'bg-white border border-slate-200 text-slate-600'}`}>
+                  Pendientes por revisar: <span className="font-bold">{returnStats.pending}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className={`${cardColor} rounded-xl border p-4`}>
+                  <p className="text-xs uppercase tracking-wide">Total</p>
+                  <p className="text-2xl font-extrabold">{returnStats.total}</p>
+                </div>
+                <div className={`${cardColor} rounded-xl border p-4`}>
+                  <p className="text-xs uppercase tracking-wide">Pendientes</p>
+                  <p className="text-2xl font-extrabold text-amber-500">{returnStats.pending}</p>
+                </div>
+                <div className={`${cardColor} rounded-xl border p-4`}>
+                  <p className="text-xs uppercase tracking-wide">Autorizadas</p>
+                  <p className="text-2xl font-extrabold text-emerald-500">{returnStats.approved}</p>
+                </div>
+                <div className={`${cardColor} rounded-xl border p-4`}>
+                  <p className="text-xs uppercase tracking-wide">Rechazadas</p>
+                  <p className="text-2xl font-extrabold text-red-500">{returnStats.rejected}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                {permissions.canCreateReturn && (
+                  <section className={`${cardColor} rounded-2xl border p-5`}>
+                    <h3 className="font-bold text-lg mb-4">Solicitar devolución</h3>
+
+                    {completedOrdersForReturns.length === 0 ? (
+                      <EmptyState
+                        title="No hay órdenes surtidas para devolver"
+                        description="Necesitas una orden completada para iniciar una solicitud."
+                        className={darkMode ? 'bg-slate-800/40 border-slate-700 text-slate-200' : ''}
+                      />
+                    ) : (
+                      <form onSubmit={handleCreateReturnRequest} className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Orden surtida *</label>
+                          <select
+                            value={returnForm.orderId}
+                            onChange={e => {
+                              setReturnForm(prev => ({ ...prev, orderId: e.target.value, itemId: '', qty: 1 }));
+                              setReturnErrors(prev => ({ ...prev, orderId: '', itemId: '', qty: '' }));
+                            }}
+                            className={`w-full p-2 rounded-lg border ${inputColor}`}
+                          >
+                            <option value="">Selecciona una orden</option>
+                            {completedOrdersForReturns.map(order => (
+                              <option key={`return-order-${order.id}`} value={order.id}>
+                                {order.id} · {order.client} · {order.assignedTo || 'Sin técnico'}
+                              </option>
+                            ))}
+                          </select>
+                          {returnErrors.orderId && <p className="text-xs text-red-500 mt-1">{returnErrors.orderId}</p>}
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Artículo *</label>
+                          <select
+                            value={returnForm.itemId}
+                            onChange={e => {
+                              setReturnForm(prev => ({ ...prev, itemId: e.target.value, qty: 1 }));
+                              setReturnErrors(prev => ({ ...prev, itemId: '', qty: '' }));
+                            }}
+                            className={`w-full p-2 rounded-lg border ${inputColor}`}
+                            disabled={!selectedReturnOrder}
+                          >
+                            <option value="">Selecciona un artículo</option>
+                            {selectedReturnOrder?.items?.map(item => {
+                              const requestedQty = getRequestedReturnQty(selectedReturnOrder.id, item.id);
+                              const remainingQtyByItem = Math.max(0, item.qty - requestedQty);
+                              return (
+                                <option key={`return-item-${selectedReturnOrder.id}-${item.id}`} value={item.id} disabled={remainingQtyByItem <= 0}>
+                                  {item.id} - {getOrderItemDescription(item)} (máx: {remainingQtyByItem})
+                                </option>
+                              );
+                            })}
+                          </select>
+                          {returnErrors.itemId && <p className="text-xs text-red-500 mt-1">{returnErrors.itemId}</p>}
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Cantidad a devolver *</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max={Math.max(1, remainingReturnQty || 1)}
+                            value={returnForm.qty}
+                            onChange={e => {
+                              const parsed = parseInt(e.target.value, 10);
+                              setReturnForm(prev => ({ ...prev, qty: Number.isNaN(parsed) ? 1 : parsed }));
+                              setReturnErrors(prev => ({ ...prev, qty: '' }));
+                            }}
+                            className={`w-full p-2 rounded-lg border ${inputColor}`}
+                            disabled={!selectedReturnOrderItem || remainingReturnQty <= 0}
+                          />
+                          <p className={`text-xs mt-1 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Disponible para devolver: <span className="font-semibold">{remainingReturnQty}</span>
+                          </p>
+                          {returnErrors.qty && <p className="text-xs text-red-500 mt-1">{returnErrors.qty}</p>}
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Motivo *</label>
+                          <textarea
+                            rows={2}
+                            value={returnForm.reason}
+                            onChange={e => {
+                              setReturnForm(prev => ({ ...prev, reason: e.target.value }));
+                              setReturnErrors(prev => ({ ...prev, reason: '' }));
+                            }}
+                            className={`w-full p-2 rounded-lg border ${inputColor}`}
+                            placeholder="Ej. Pieza dañada o no requerida en campo"
+                          />
+                          {returnErrors.reason && <p className="text-xs text-red-500 mt-1">{returnErrors.reason}</p>}
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Notas adicionales (opcional)</label>
+                          <textarea
+                            rows={2}
+                            value={returnForm.notes}
+                            onChange={e => setReturnForm(prev => ({ ...prev, notes: e.target.value }))}
+                            className={`w-full p-2 rounded-lg border ${inputColor}`}
+                            placeholder="Núm. serie, condiciones, evidencia, etc."
+                          />
+                        </div>
+
+                        <button type="submit" className="w-full bg-amber-600 text-white py-2 rounded-lg hover:bg-amber-500 font-medium">
+                          Enviar solicitud
+                        </button>
+                      </form>
+                    )}
+                  </section>
+                )}
+
+                <section className={`${cardColor} rounded-2xl border p-5`}>
+                  <h3 className="font-bold text-lg mb-4">{permissions.canAuthorizeReturn ? 'Pendientes de autorización' : 'Mis devoluciones pendientes'}</h3>
+                  {visibleReturnRequests.filter(req => req.status === 'pending').length === 0 ? (
+                    <p className="text-sm text-slate-400">No hay devoluciones pendientes por revisar.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                      {visibleReturnRequests
+                        .filter(req => req.status === 'pending')
+                        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                        .map(req => (
+                          <article key={`pending-return-${req.id}`} className={`rounded-xl border p-3 ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200'}`}>
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <p className="font-bold text-sm">{req.id}</p>
+                                <p className="text-xs">Orden: {req.orderId}</p>
+                                <p className="text-xs">{req.itemId} · {req.qty} pza(s)</p>
+                                <p className="text-xs text-slate-400">Solicita: {req.requestedByName || req.requestedBy}</p>
+                              </div>
+                              <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${returnStatusBadgeClass(req.status)}`}>
+                                {returnStatusLabel(req.status)}
+                              </span>
+                            </div>
+                          </article>
+                        ))}
+                    </div>
+                  )}
+                </section>
+              </div>
+
+              <section className={`${cardColor} rounded-2xl border p-5`}>
+                <h3 className="font-bold text-lg mb-4">Historial de devoluciones</h3>
+
+                {visibleReturnRequests.length === 0 ? (
+                  <EmptyState
+                    title="Sin devoluciones registradas"
+                    description="Cuando se creen solicitudes de devolución aparecerán aquí."
+                    className={darkMode ? 'bg-slate-800/40 border-slate-700 text-slate-200' : ''}
+                  />
+                ) : (
+                  <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
+                    {visibleReturnRequests.map(req => (
+                      <article key={req.id} className={`rounded-xl border p-4 ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200'}`}>
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                          <div>
+                            <p className="font-extrabold text-sm">{req.id}</p>
+                            <p className="text-xs text-slate-400">
+                              {new Date(req.createdAt).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                          <span className={`text-xs font-bold px-2 py-1 rounded-full border ${returnStatusBadgeClass(req.status)}`}>
+                            {returnStatusLabel(req.status)}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                          <p><span className="font-semibold">Orden:</span> {req.orderId}</p>
+                          <p><span className="font-semibold">Cliente:</span> {req.client || 'N/A'}</p>
+                          <p><span className="font-semibold">Artículo:</span> {req.itemId} - {req.itemDesc || 'Sin descripción'}</p>
+                          <p><span className="font-semibold">Cantidad:</span> {req.qty} pza(s)</p>
+                          <p><span className="font-semibold">Solicitó:</span> {req.requestedByName || req.requestedBy}</p>
+                          <p><span className="font-semibold">Técnico:</span> {req.assignedTo || 'Sin asignar'}</p>
+                        </div>
+
+                        <div className="mt-2 text-xs">
+                          <p><span className="font-semibold">Motivo:</span> {req.reason}</p>
+                          {req.notes && <p className="mt-1"><span className="font-semibold">Notas:</span> {req.notes}</p>}
+                          {req.decidedBy && (
+                            <p className="mt-1 text-slate-400">
+                              Resolvió: {req.decidedBy} · {req.decidedAt ? new Date(req.decidedAt).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Sin fecha'}
+                            </p>
+                          )}
+                          {req.decisionNote && <p className="mt-1 italic text-slate-400">Comentario admin: {req.decisionNote}</p>}
+                        </div>
+
+                        {permissions.canAuthorizeReturn && req.status === 'pending' && (
+                          <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                            <button
+                              onClick={() => handleApproveReturn(req.id)}
+                              className="flex-1 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold"
+                            >
+                              Autorizar devolución
+                            </button>
+                            <button
+                              onClick={() => handleRejectReturn(req.id)}
+                              className="flex-1 px-3 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-semibold"
+                            >
+                              Rechazar
+                            </button>
+                          </div>
+                        )}
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
+
           {/* USUARIOS */}
           {view === 'users' && permissions.canManageUsers && (
             <div className="space-y-6 max-w-7xl mx-auto">
@@ -2090,6 +2830,45 @@ export default function App() {
             <div className="space-y-6 max-w-7xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-bold">Reportes & Estadísticas</h2>
 
+              <div className={`${cardColor} p-5 rounded-2xl shadow-sm border space-y-4`}>
+                <div className="flex flex-col md:flex-row md:items-end gap-3">
+                  <div className="w-full md:w-auto">
+                    <label className="block text-sm font-medium mb-1">Reporte diario de entregados</label>
+                    <input
+                      type="date"
+                      value={dailyReportDate}
+                      onChange={e => setDailyReportDate(e.target.value)}
+                      className={`w-full md:w-52 p-2 rounded-lg border ${inputColor}`}
+                    />
+                  </div>
+                  <button
+                    onClick={exportDailyDeliveredReport}
+                    className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 text-sm font-semibold"
+                  >
+                    Exportar CSV (Excel)
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                  <div className={`rounded-xl border p-3 ${darkMode ? 'border-slate-700 bg-slate-800/50' : 'border-slate-200 bg-slate-50'}`}>
+                    <p className="text-xs uppercase tracking-wide">Entregados ({dailyReportDate})</p>
+                    <p className="text-2xl font-extrabold text-emerald-500">{dailyReportSummary.delivered}</p>
+                  </div>
+                  <div className={`rounded-xl border p-3 ${darkMode ? 'border-slate-700 bg-slate-800/50' : 'border-slate-200 bg-slate-50'}`}>
+                    <p className="text-xs uppercase tracking-wide">Promedio reacción</p>
+                    <p className="text-xl font-bold">{formatDuration(dailyReportSummary.avgResponseHours)}</p>
+                  </div>
+                  <div className={`rounded-xl border p-3 ${darkMode ? 'border-slate-700 bg-slate-800/50' : 'border-slate-200 bg-slate-50'}`}>
+                    <p className="text-xs uppercase tracking-wide">Promedio entrega</p>
+                    <p className="text-xl font-bold">{formatDuration(dailyReportSummary.avgDeliveryHours)}</p>
+                  </div>
+                </div>
+
+                <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Incluye tiempos de respuesta (creación → primera asignación) y entrega (creación → surtido).
+                </p>
+              </div>
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className={`${cardColor} p-6 rounded-2xl shadow-sm border`}>
                   <h3 className="font-bold mb-4 flex items-center gap-2"><AlertTriangle size={18} className="text-red-500" /> Stock Crítico</h3>
@@ -2186,16 +2965,28 @@ export default function App() {
           <div className={`${cardColor} rounded-2xl shadow-xl w-full max-w-md border overflow-hidden flex flex-col max-h-[90vh]`}>
             <div className={`p-4 border-b flex justify-between items-center ${darkMode ? 'bg-slate-700' : 'bg-slate-50'}`}>
               <h3 className="font-bold">{assignmentForm.orderId ? 'Asignar / Reasignar Técnico' : 'Asignar Técnico'}</h3>
-              <button onClick={() => { setShowAssignmentModal(false); setAssignmentForm({ orderId: '', technicianId: '' }); }}><X size={20} /></button>
+              <button onClick={() => { setShowAssignmentModal(false); setAssignmentForm({ orderId: '', technicianId: '', scheduledDate: toLocalDateKey(new Date()) }); }}><X size={20} /></button>
             </div>
             <form onSubmit={handleAssignTechnician} className="p-5 flex-1 overflow-y-auto space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Orden pendiente *</label>
-                <select value={assignmentForm.orderId} onChange={e => setAssignmentForm({...assignmentForm, orderId: e.target.value})} className={`w-full p-2 rounded-lg border ${inputColor} focus:outline-none focus:ring-2 focus:ring-amber-500`}>
+                <select
+                  value={assignmentForm.orderId}
+                  onChange={e => {
+                    const nextOrderId = e.target.value;
+                    const nextOrder = orders.find(order => order.id === nextOrderId);
+                    setAssignmentForm({
+                      ...assignmentForm,
+                      orderId: nextOrderId,
+                      scheduledDate: nextOrder ? getOrderScheduledDate(nextOrder) : assignmentForm.scheduledDate,
+                    });
+                  }}
+                  className={`w-full p-2 rounded-lg border ${inputColor} focus:outline-none focus:ring-2 focus:ring-amber-500`}
+                >
                   <option value="">Selecciona una orden</option>
                   {orders.filter(o => o.status === 'pending').map(order => (
                     <option key={order.id} value={order.id}>
-                      {order.id} - {order.client}{order.assignedTo ? ` (Actual: ${order.assignedTo})` : ' (Sin asignar)'}
+                      {order.id} - {order.client}{order.assignedTo ? ` (Actual: ${order.assignedTo})` : ' (Sin asignar)'} · {getOrderScheduledDate(order)}
                     </option>
                   ))}
                 </select>
@@ -2209,13 +3000,25 @@ export default function App() {
                   ))}
                 </select>
               </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Fecha programada *</label>
+                <input
+                  type="date"
+                  value={assignmentForm.scheduledDate}
+                  onChange={e => setAssignmentForm({ ...assignmentForm, scheduledDate: e.target.value })}
+                  className={`w-full p-2 rounded-lg border ${inputColor} focus:outline-none focus:ring-2 focus:ring-amber-500`}
+                />
+                <p className={`text-[11px] mt-1 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Puedes reprogramar la orden para otro día.
+                </p>
+              </div>
               <div className="flex gap-2 pt-4">
                 <button type="submit" className="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-500 font-medium">
                   {assignmentForm.orderId ? 'Guardar asignación' : 'Asignar'}
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setShowAssignmentModal(false); setAssignmentForm({ orderId: '', technicianId: '' }); }}
+                  onClick={() => { setShowAssignmentModal(false); setAssignmentForm({ orderId: '', technicianId: '', scheduledDate: toLocalDateKey(new Date()) }); }}
                   className="flex-1 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-500"
                 >
                   Cancelar
